@@ -29,6 +29,27 @@ ENV/
 # IDEs
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+celerybeat-schedule
+celerybeat.pid
+
+# Environment
+.env
+.env.local
+
+# Test
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+.idea/
 
 # Environment Variables
 .env

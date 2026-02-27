@@ -1,120 +1,156 @@
-# Codebase Documentation
+# Inceptrix - Red Team Scan Engine
 
-This document provides a technical breakdown of the files in the `inceptrix2026` project, detailing their specific functionalities, inputs, and outputs.
+Automated security scanning platform with strict state machine lifecycle management.
 
-## File Reference
+## Architecture
 
-### 1. `app/main.py`
-**Functionality**: 
-The entry point for the FastAPI application. It initializes the `FastAPI` app instance and includes the API routes.
-- **Inputs**: None directly (server startup).
-- **Outputs**: Run the HTTP server.
+```
+┌─────────────┐     POST /scan      ┌─────────────┐
+│   Client    │ ──────────────────► │   FastAPI   │
+└─────────────┘                     │  (main.py)  │
+      ▲                             └──────┬──────┘
+      │ GET /status, /report               │
+      │                                    │ dispatch task
+      │                                    ▼
+      │                             ┌─────────────┐
+      │                             │    Redis    │ ◄── State Storage
+      │                             │  (6379)     │     + Celery Broker
+      │                             └──────┬──────┘
+      │                                    │
+      │                                    ▼
+      │                             ┌─────────────┐
+      └──────────────────────────── │   Celery    │
+           (reads status/report)    │   Worker    │
+                                    └──────┬──────┘
+                                           │ runs containers
+                                           ▼
+                                    ┌─────────────┐
+                                    │   Docker    │
+                                    └─────────────┘
+```
 
-### 2. `app/api/routes.py`
-**Functionality**: 
-Defines the HTTP endpoints for the API. Handles request validation and response formatting.
+## State Machine
 
-#### Endpoint: `POST /scan`
-- **Function**: `start_scan`
-- **What it does**: Generates a UUID `engagement_id`, sets status to "Queued" in Redis, and pushes a task to the Celery queue.
-- **Input (JSON Body)**:
-  ```json
-  { "target_url": "http://example.com" }
-  ```
-- **Output (JSON)**:
-  ```json
-  { "engagement_id": "uuid-string", "status": "Queued" }
-  ```
+Jobs follow a strict state transition lifecycle:
 
-#### Endpoint: `GET /status/{engagement_id}`
-- **Function**: `get_status`
-- **What it does**: Queries Redis for the current status of a specific job.
-- **Input (Path Param)**: `engagement_id` (string)
-- **Output (JSON)**:
-  ```json
-  { "engagement_id": "uuid-string", "status": "Queued|Running|Completed|Failed" }
-  ```
+```
+Queued → Provisioning → Provisioned → Attacking → Normalizing → Generating_Report → Completed
+   ↓           ↓              ↓           ↓            ↓                ↓
+   └───────────┴──────────────┴───────────┴────────────┴────────────────┴────────→ Failed
+```
 
-#### Endpoint: `GET /report/{engagement_id}`
-- **Function**: `get_report`
-- **What it does**: Retrieves the final scan result from Redis. Only works if status is "Completed".
-- **Input (Path Param)**: `engagement_id` (string)
-- **Output (JSON)**: Arbitrary JSON object containing scan findings (dependent on worker output).
+| State | Description |
+|-------|-------------|
+| `Queued` | Job created, waiting for worker pickup |
+| `Provisioning` | Starting target container, creating network |
+| `Provisioned` | Container ready, endpoint reachable |
+| `Attacking` | Executing scan tools (nmap, nuclei, etc.) |
+| `Normalizing` | Parsing raw outputs, mapping to schema |
+| `Generating_Report` | Creating final report |
+| `Completed` | Scan finished successfully |
+| `Failed` | Error occurred (reachable from any state) |
 
-### 3. `app/schemas.py`
-**Functionality**: 
-Defines Pydantic models for data validation and serialization.
+## API Endpoints
 
-- **`ScanRequest`**:
-  - Validates that `target_url` is a valid HTTP URL.
-- **`ScanResponse`**:
-  - Ensures responses strictly follow the `{ engagement_id, status }` format.
+### `POST /scan`
+Start a new scan job.
 
-### 4. `app/worker/tasks.py`
-**Functionality**: 
-The core logic executed by the Celery worker.
+**Request:**
+```json
+{ "target_url": "http://example.com" }
+```
 
-#### Task: `run_scan_task`
-- **Inputs**: `engagement_id` (str), `target_url` (str)
-- **Logic**:
-  1. Updates Redis status to "Running".
-  2. Checks if Docker is available.
-  3. **If Docker is available**: 
-     - Pulls/Runs an `alpine` container.
-     - Executes a command to simulate a tool outputting JSON.
-     - Captures container logs (stdout).
-  4. **If Docker is missing**: 
-     - Waits 5 seconds (Mock Mode).
-     - Generates static dummy data.
-  5. Saves the JSON result to Redis key `job:{id}:report`.
-  6. Updates Redis status to "Completed".
+**Response:**
+```json
+{ "engagement_id": "uuid", "status": "Queued" }
+```
 
-### 5. `app/worker/celery_app.py`
-**Functionality**: 
-Configures the Celery application instance.
-- **Settings**:
-  - Broker: Redis (default `redis://localhost:6379/0`)
-  - Backend: Redis
-  - Serialization: JSON
+### `GET /status/{engagement_id}`
+Get current job status.
 
-### 6. `app/core/redis.py`
-**Functionality**: 
-Singleton Redis client initialization.
-- **Exports**: `redis_client` object used by both API and Worker to ensure consistent connection settings.
+**Query Params:** `?include_history=true` (optional)
 
-### 7. `docker-compose.yml`
-**Functionality**: 
-Infrastructure orchestration using Docker.
-- **Services**:
-  - `redis`: Image `redis:alpine`. Maps port `6379`.
+**Response:**
+```json
+{
+  "engagement_id": "uuid",
+  "status": "Completed",
+  "history": [
+    { "state": "Queued", "timestamp": "2026-02-27T16:49:08Z" },
+    { "state": "Provisioning", "timestamp": "2026-02-27T16:49:08Z" },
+    ...
+  ]
+}
+```
 
-### 8. `requirements.txt`
-**Functionality**: 
-List of Python package dependencies.
-- `fastapi`, `uvicorn`: Web server.
-- `redis`: Redis client.
-- `celery`: Task queue.
-- `docker`: Docker engine API client.
-- `pydantic`: Data validation.
-- `pyngrok`: A Python wrapper for ngrok.
+### `GET /status/{engagement_id}/history`
+Get full state transition history with timestamps.
 
-## Setup & Usage with ngrok
+### `GET /report/{engagement_id}`
+Get scan report (only available when status is `Completed`).
 
-To expose your local server to the internet using ngrok:
+## Redis Key Schema
 
-1.  **Install dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
+| Key | Type | Description |
+|-----|------|-------------|
+| `job:{id}:status` | STRING | Current state value |
+| `job:{id}:history` | LIST | State transition history (`STATE:TIMESTAMP`) |
+| `job:{id}:report` | STRING | Final report JSON |
+| `job:{id}:error` | STRING | Error message (on failure) |
 
-2.  **Set your ngrok authtoken**:
-    Get your authtoken from the [ngrok dashboard](https://dashboard.ngrok.com/get-started/your-authtoken).
-    ```bash
-    python setup_ngrok.py <YOUR_AUTHTOKEN>
-    ```
+## Setup
 
-3.  **Run the application**:
-    ```bash
-    uvicorn app.main:app --reload
-    ```
-    The application will automatically start an ngrok tunnel and print the public URL in the console.
+### 1. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Start Redis
+```bash
+docker-compose up -d redis
+```
+
+### 3. Start Celery worker
+```bash
+python -m celery -A app.worker.celery_app worker --loglevel=info --pool=solo
+```
+
+### 4. Start FastAPI server
+```bash
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+## File Structure
+
+```
+app/
+├── main.py              # FastAPI entry point
+├── schemas.py           # Pydantic models + JobState enum
+├── api/
+│   └── routes.py        # HTTP endpoints
+├── core/
+│   ├── redis.py         # Redis client
+│   └── state_manager.py # State machine logic
+└── worker/
+    ├── celery_app.py    # Celery configuration
+    └── tasks.py         # Scan task implementation
+```
+
+## State Manager API
+
+```python
+from app.core.state_manager import transition_state, force_fail, get_state, get_state_history
+from app.schemas import JobState
+
+# Transition to next state (validates transition rules)
+transition_state(engagement_id, JobState.PROVISIONING)
+
+# Force fail from any state
+force_fail(engagement_id, "Container startup failed")
+
+# Get current state
+state = get_state(engagement_id)
+
+# Get full history
+history = get_state_history(engagement_id)
+```
