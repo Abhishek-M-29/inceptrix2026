@@ -96,3 +96,25 @@ List of Python package dependencies.
 - `celery`: Task queue.
 - `docker`: Docker engine API client.
 - `pydantic`: Data validation.
+- `pyngrok`: A Python wrapper for ngrok.
+
+## Setup & Usage with ngrok
+
+To expose your local server to the internet using ngrok:
+
+1.  **Install dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+2.  **Set your ngrok authtoken**:
+    Get your authtoken from the [ngrok dashboard](https://dashboard.ngrok.com/get-started/your-authtoken).
+    ```bash
+    python setup_ngrok.py <YOUR_AUTHTOKEN>
+    ```
+
+3.  **Run the application**:
+    ```bash
+    uvicorn app.main:app --reload
+    ```
+    The application will automatically start an ngrok tunnel and print the public URL in the console.
