@@ -10,6 +10,10 @@ from app.worker.tasks import run_scan_task
 import uuid
 import json
 
+
+
+router = APIRouter()
+
 ##################################
 # This is untested, and may break
 
@@ -39,8 +43,6 @@ async def receive_scan(data: ScanWebhook):
     return {"message": "Webhook received successfully"}
 
 #################################
-
-router = APIRouter()
 
 @router.post("/scan", response_model=ScanResponse)
 async def start_scan(request: ScanRequest):
