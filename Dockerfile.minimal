@@ -2,6 +2,8 @@
 # Single-stage, self-contained build for the Inceptrix MCP pentest server.
 # Base: kalilinux/kali-rolling  (no intermediate images required)
 #
+# Tool install priority: apt (official Kali packages) → GitHub release binary → git clone
+#
 # Build:
 #   docker build -f Dockerfile.minimal -t inceptrix-mcp:latest .
 #
@@ -15,70 +17,47 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# ── 1. System packages ────────────────────────────────────────────────────────
-# Everything in one layer: Python, Ruby (WhatWeb), Perl (nikto),
-# Node.js source-list tooling, nmap, wordlists, and build deps.
+# ── 1. Everything from official Kali apt repos ────────────────────────────────
+# Pentest tools: nmap, nikto, whatweb, sqlmap, wfuzz, ffuf, nuclei, httpx-toolkit
+# System deps:   python3+venv, git, curl, unzip, wordlists
+# apt handles all transitive deps (Ruby for whatweb, Perl for nikto, etc.)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        python3 python3-pip python3-venv \
-        ruby ruby-dev build-essential \
-        perl libnet-ssleay-perl libio-socket-ssl-perl \
         nmap \
-        git curl wget unzip ca-certificates \
+        nikto \
+        whatweb \
+        sqlmap \
+        wfuzz \
+        ffuf \
+        nuclei \
+        httpx-toolkit \
+        python3 python3-pip python3-venv \
+        git curl unzip ca-certificates \
         wordlists \
     && rm -rf /var/lib/apt/lists/*
 
-# ── 2. Node.js 20 LTS ─────────────────────────────────────────────────────────
+# ── 2. Node.js 20 LTS (NodeSource — official channel for Node releases) ───────
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# ── 3. Python pentest tools (pip) ─────────────────────────────────────────────
-RUN pip3 install --break-system-packages sqlmap wfuzz
-
-# ── 4. nikto ─────────────────────────────────────────────────────────────────
-RUN git clone --depth 1 https://github.com/sullo/nikto.git /opt/nikto \
-    && chmod +x /opt/nikto/program/nikto.pl \
-    && ln -sf /opt/nikto/program/nikto.pl /usr/local/bin/nikto
-
-# ── 5. WhatWeb ───────────────────────────────────────────────────────────────
-RUN git clone --depth 1 https://github.com/urbanadventurer/WhatWeb.git /opt/whatweb \
-    && chmod +x /opt/whatweb/whatweb \
-    && ln -sf /opt/whatweb/whatweb /usr/local/bin/whatweb
-
-# ── 6. Pre-built Go binaries (ffuf, nuclei, httpx, dalfox) ───────────────────
-# Fetches latest release from GitHub — no Go toolchain needed.
+# ── 3. dalfox — not in Kali apt, use official GitHub release binary ───────────
 RUN set -eux; \
-    # ffuf
-    VER=$(curl -fsSL https://api.github.com/repos/ffuf/ffuf/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/'); \
-    curl -fsSL "https://github.com/ffuf/ffuf/releases/download/v${VER}/ffuf_${VER}_linux_amd64.tar.gz" -o /tmp/ffuf.tar.gz; \
-    tar -xzf /tmp/ffuf.tar.gz -C /usr/local/bin/ ffuf; \
-    rm /tmp/ffuf.tar.gz; \
-    # nuclei
-    VER=$(curl -fsSL https://api.github.com/repos/projectdiscovery/nuclei/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/'); \
-    curl -fsSL "https://github.com/projectdiscovery/nuclei/releases/download/v${VER}/nuclei_${VER}_linux_amd64.zip" -o /tmp/nuclei.zip; \
-    unzip -q /tmp/nuclei.zip nuclei -d /usr/local/bin/; \
-    rm /tmp/nuclei.zip; \
-    # httpx — installed as httpx-toolkit so it doesn't shadow the Python httpx CLI
-    VER=$(curl -fsSL https://api.github.com/repos/projectdiscovery/httpx/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/'); \
-    curl -fsSL "https://github.com/projectdiscovery/httpx/releases/download/v${VER}/httpx_${VER}_linux_amd64.zip" -o /tmp/httpx.zip; \
-    unzip -q /tmp/httpx.zip httpx -d /tmp/; \
-    mv /tmp/httpx /usr/local/bin/httpx-toolkit; \
-    rm /tmp/httpx.zip; \
-    # dalfox
-    VER=$(curl -fsSL https://api.github.com/repos/hahwul/dalfox/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/'); \
-    curl -fsSL "https://github.com/hahwul/dalfox/releases/download/v${VER}/dalfox_${VER}_linux_amd64.tar.gz" -o /tmp/dalfox.tar.gz; \
+    VER=$(curl -fsSL https://api.github.com/repos/hahwul/dalfox/releases/latest \
+          | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/'); \
+    curl -fsSL "https://github.com/hahwul/dalfox/releases/download/v${VER}/dalfox_${VER}_linux_amd64.tar.gz" \
+         -o /tmp/dalfox.tar.gz; \
     tar -xzf /tmp/dalfox.tar.gz -C /usr/local/bin/ dalfox; \
-    rm /tmp/dalfox.tar.gz; \
-    chmod +x /usr/local/bin/ffuf /usr/local/bin/nuclei /usr/local/bin/httpx-toolkit /usr/local/bin/dalfox
+    chmod +x /usr/local/bin/dalfox; \
+    rm /tmp/dalfox.tar.gz
 
-# ── 7. jwt_tool ──────────────────────────────────────────────────────────────
+# ── 4. jwt_tool — not in Kali apt, use official git repo ─────────────────────
 RUN git clone --depth 1 https://github.com/ticarpi/jwt_tool.git /opt/jwt_tool \
     && pip3 install --break-system-packages -r /opt/jwt_tool/requirements.txt \
     && chmod +x /opt/jwt_tool/jwt_tool.py \
     && ln -sf /opt/jwt_tool/jwt_tool.py /usr/local/bin/jwt_tool
 
-# ── 8. Python venv for MCP server ────────────────────────────────────────────
+# ── 5. Python venv for MCP server ────────────────────────────────────────────
 ENV VENV=/opt/mcp_venv
 RUN python3 -m venv "${VENV}"
 ENV PATH="${VENV}/bin:${PATH}"
@@ -88,10 +67,10 @@ COPY docker_mcp/requirements.txt .
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-# ── 9. Copy MCP server source ─────────────────────────────────────────────────
+# ── 6. Copy MCP server source ─────────────────────────────────────────────────
 COPY docker_mcp/ .
 
-# ── 10. Smoke test ────────────────────────────────────────────────────────────
+# ── 7. Smoke test ────────────────────────────────────────────────────────────
 RUN python3 -c "import fastmcp, fastapi, uvicorn, pydantic; print('Python deps OK')" \
     && nmap --version | head -1 \
     && nikto -Version 2>&1 | head -1 \
