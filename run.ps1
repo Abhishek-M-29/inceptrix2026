@@ -48,25 +48,25 @@ function Kill-Port([int]$port) {
     $pids = Get-PidsOnPort $port
     if (-not $pids) { return }
 
-    foreach ($pid in $pids) {
+    foreach ($procId in $pids) {
         try {
-            $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
-            $name = if ($proc) { $proc.Name } else { "pid=$pid" }
+            $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
+            $name = if ($proc) { $proc.Name } else { "pid=$procId" }
 
             if (-not $KillDontAsk) {
-                Write-Warn "Port $port is held by $name (pid=$pid)."
+                Write-Warn "Port $port is held by $name (pid=$procId)."
                 $ans = Read-Host "  Kill it? [y/N]"
                 if ($ans -notmatch '^[Yy]') {
-                    Write-Warn "Skipped — port $port may still be in use."
+                    Write-Warn "Skipped -- port $port may still be in use."
                     return
                 }
             } else {
-                Write-Warn "Port $port held by $name (pid=$pid) — killing (--kill-dont-ask)."
+                Write-Warn "Port $port held by $name (pid=$procId) -- killing (--kill-dont-ask)."
             }
-            Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
-            Write-Ok "Killed $name (pid=$pid) on port $port."
+            Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+            Write-Ok "Killed $name (pid=$procId) on port $port."
         } catch {
-            Write-Warn "Could not kill pid=${pid}: $_"
+            Write-Warn "Could not kill pid=${procId}: $_"
         }
     }
 }
