@@ -1,0 +1,6 @@
+.latest
+.stable-env
+/stable-env
+/latest
+./stable-env
+./latest
