@@ -2,7 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { useInView } from '../hooks/useInView'
 import { MOCK_TERMINAL_LINES } from '../data/mockData'
 
-export default function ScanInputPanel() {
+interface ScanInputPanelProps {
+  onScan?: (url: string) => void
+}
+
+export default function ScanInputPanel({ onScan }: ScanInputPanelProps) {
   const { ref, isInView } = useInView({ threshold: 0.2 })
   const [url, setUrl] = useState('')
   const [validationStep, setValidationStep] = useState(0)
@@ -56,6 +60,16 @@ export default function ScanInputPanel() {
     setUrl(newUrl)
   }
 
+  const handleScan = () => {
+    if (url.includes('github.com/') && onScan) {
+      onScan(url)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') handleScan()
+  }
+
   return (
     <section
       id="scan-input"
@@ -85,9 +99,14 @@ export default function ScanInputPanel() {
                 placeholder="https://github.com/your-org/your-repo"
                 value={url}
                 onChange={handleUrlChange}
+                onKeyDown={handleKeyDown}
                 style={{ borderLeft: 'none' }}
               />
-              <button className="redshell-btn-sm shrink-0 border-l-0" style={{ animation: 'none' }}>
+              <button
+                className="redshell-btn-sm shrink-0 border-l-0"
+                style={{ animation: 'none' }}
+                onClick={handleScan}
+              >
                 ▶ RUN REDSHELL
               </button>
             </div>

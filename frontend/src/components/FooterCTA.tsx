@@ -1,6 +1,12 @@
+import { useState } from 'react'
 import { useInView } from '../hooks/useInView'
 
-export default function FooterCTA() {
+interface FooterCTAProps {
+  onScan?: (url: string) => void
+}
+
+export default function FooterCTA({ onScan }: FooterCTAProps) {
+  const [footerUrl, setFooterUrl] = useState('')
   const { ref: ctaRef, isInView: ctaInView } = useInView({ threshold: 0.2 })
   const { ref: footerRef, isInView: footerInView } = useInView({ threshold: 0.3 })
 
@@ -45,9 +51,20 @@ export default function FooterCTA() {
               type="text"
               className="terminal-input flex-1"
               placeholder="https://github.com/your-org/your-repo"
+              value={footerUrl}
+              onChange={e => setFooterUrl(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && footerUrl.includes('github.com/') && onScan) onScan(footerUrl)
+              }}
               style={{ borderLeft: 'none' }}
             />
-            <button className="redshell-btn-sm shrink-0 border-l-0 whitespace-nowrap" style={{ animation: 'none' }}>
+            <button
+              className="redshell-btn-sm shrink-0 border-l-0 whitespace-nowrap"
+              style={{ animation: 'none' }}
+              onClick={() => {
+                if (footerUrl.includes('github.com/') && onScan) onScan(footerUrl)
+              }}
+            >
               SCAN NOW
             </button>
           </div>
