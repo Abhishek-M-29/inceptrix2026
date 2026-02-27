@@ -15,6 +15,10 @@ import json
 router = APIRouter()
 
 from pydantic import BaseModel
+from datetime import datetime, timezone
+
+WEBHOOK_QUEUE_KEY = "webhook:queue"
+PAGE_SIZE = 20
 
 
 # -------- Payload Schema --------
@@ -28,13 +32,36 @@ class ScanWebhook(BaseModel):
 # -------- Webhook Endpoint --------
 @router.post("/webhook/scan")
 async def receive_scan(data: ScanWebhook):
-    print("Webhook received:")
-    print(f"Tool: {data.tool}")
-    print(f"Target: {data.target}")
-    print(f"Command: {data.command_used}")
-    print(f"Status: {data.status}")
+    entry = {
+        "tool": data.tool,
+        "target": data.target,
+        "command_used": data.command_used,
+        "status": data.status,
+        "received_at": datetime.now(timezone.utc).isoformat(),
+    }
+    redis_client.rpush(WEBHOOK_QUEUE_KEY, json.dumps(entry))
 
-    return {"message": "Webhook received successfully"}
+    print(f"[webhook] queued → tool={data.tool} target={data.target} status={data.status}")
+    return {"message": "Webhook received successfully", "queue_length": redis_client.llen(WEBHOOK_QUEUE_KEY)}
+
+
+# -------- Queue Read Endpoint --------
+@router.get("/queue")
+async def get_queue(page: int = Query(1, ge=1), page_size: int = Query(PAGE_SIZE, ge=1, le=100)):
+    total = redis_client.llen(WEBHOOK_QUEUE_KEY)
+    start = (page - 1) * page_size
+    end = start + page_size - 1
+
+    raw_items = redis_client.lrange(WEBHOOK_QUEUE_KEY, start, end)
+    items = [json.loads(item) for item in raw_items]
+
+    return {
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": max(1, (total + page_size - 1) // page_size),
+        "items": items,
+    }
 
 @router.post("/scan", response_model=ScanResponse)
 async def start_scan(request: ScanRequest):
