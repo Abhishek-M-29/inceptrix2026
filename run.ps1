@@ -44,6 +44,9 @@ function Get-PidsOnPort([int]$port) {
              Select-Object -ExpandProperty OwningProcess -Unique)
 }
 
+# Processes we must never kill — killing these would break Docker/WSL/system
+$PROTECTED = @('com.docker.backend','dockerd','Docker Desktop','wslrelay','wsl','wslhost','vpnkit','containerd')
+
 function Kill-Port([int]$port) {
     $pids = Get-PidsOnPort $port
     if (-not $pids) { return }
@@ -53,12 +56,20 @@ function Kill-Port([int]$port) {
             $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
             $name = if ($proc) { $proc.Name } else { "pid=$procId" }
 
+            # Never kill Docker/WSL infrastructure — it just means a previous container
+            # or Docker's own proxy grabbed the port; restarting Docker Desktop fixes it.
+            if ($PROTECTED -contains $name) {
+                Write-Warn "Port $port is held by '$name' (pid=$procId) — protected process, skipping."
+                Write-Warn "  If this port is a leftover from a previous run, restart Docker Desktop."
+                continue
+            }
+
             if (-not $KillDontAsk) {
                 Write-Warn "Port $port is held by $name (pid=$procId)."
                 $ans = Read-Host "  Kill it? [y/N]"
                 if ($ans -notmatch '^[Yy]') {
                     Write-Warn "Skipped -- port $port may still be in use."
-                    return
+                    continue
                 }
             } else {
                 Write-Warn "Port $port held by $name (pid=$procId) -- killing (--kill-dont-ask)."
