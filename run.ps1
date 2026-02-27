@@ -1,11 +1,11 @@
-# run.ps1 — Build, launch, and verify the Inceptrix MCP pentest server.
+﻿# run.ps1 â€” Build, launch, and verify the Inceptrix MCP pentest server.
 #
 # Usage:
 #   .\run.ps1                  # build + port-check (ask before killing) + start + test
 #   .\run.ps1 --kill-dont-ask  # same but kills port conflicts without prompting
 #   .\run.ps1 -NoBuild         # skip docker build, just start
 #   .\run.ps1 -TestOnly        # only run test_mcp.py against a running container
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 param(
     [switch]$NoBuild,
     [switch]$TestOnly,
@@ -23,9 +23,9 @@ $MCP_PORT  = 8090
 $API_PORT  = 8091
 $SANDBOX_PORTS = 3000..3010
 
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Helpers
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Write-Step($msg) { Write-Host "  >> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host "  [OK]  $msg" -ForegroundColor Green }
 function Write-Fail($msg) { Write-Host "  [!!]  $msg" -ForegroundColor Red }
@@ -44,7 +44,7 @@ function Get-PidsOnPort([int]$port) {
              Select-Object -ExpandProperty OwningProcess -Unique)
 }
 
-# Processes we must never kill — killing these would break Docker/WSL/system
+# Processes we must never kill â€” killing these would break Docker/WSL/system
 $PROTECTED = @('com.docker.backend','dockerd','Docker Desktop','wslrelay','wsl','wslhost','vpnkit','containerd')
 
 function Kill-Port([int]$port) {
@@ -56,11 +56,10 @@ function Kill-Port([int]$port) {
             $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
             $name = if ($proc) { $proc.Name } else { "pid=$procId" }
 
-            # Never kill Docker/WSL infrastructure — it just means a previous container
-            # or Docker's own proxy grabbed the port; restarting Docker Desktop fixes it.
+            # Never kill Docker/WSL infrastructure
             if ($PROTECTED -contains $name) {
-                Write-Warn "Port $port is held by '$name' (pid=$procId) — protected process, skipping."
-                Write-Warn "  If this port is a leftover from a previous run, restart Docker Desktop."
+                Write-Warn "Port $port is held by '$name' (pid=$procId) - protected, skipping."
+                Write-Warn "  Restart Docker Desktop if this port was left over from a previous run."
                 continue
             }
 
@@ -68,11 +67,11 @@ function Kill-Port([int]$port) {
                 Write-Warn "Port $port is held by $name (pid=$procId)."
                 $ans = Read-Host "  Kill it? [y/N]"
                 if ($ans -notmatch '^[Yy]') {
-                    Write-Warn "Skipped -- port $port may still be in use."
+                    Write-Warn "Skipped - port $port may still be in use."
                     continue
                 }
             } else {
-                Write-Warn "Port $port held by $name (pid=$procId) -- killing (--kill-dont-ask)."
+                Write-Warn "Port $port held by $name (pid=$procId) - killing (flag: kill-dont-ask)."
             }
             Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
             Write-Ok "Killed $name (pid=$procId) on port $port."
@@ -82,9 +81,9 @@ function Kill-Port([int]$port) {
     }
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 0 — TestOnly shortcut
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Step 0 â€” TestOnly shortcut
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if ($TestOnly) {
     Write-Host ''
     Write-Host 'Running tests against existing container...' -ForegroundColor Cyan
@@ -92,13 +91,13 @@ if ($TestOnly) {
     exit $LASTEXITCODE
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 1 — Clear port conflicts
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Step 1 â€” Clear port conflicts
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Host ''
-Write-Host ('═' * 62) -ForegroundColor DarkGray
-Write-Host '  Inceptrix MCP — Launch Script' -ForegroundColor White
-Write-Host ('═' * 62) -ForegroundColor DarkGray
+Write-Host ('â•' * 62) -ForegroundColor DarkGray
+Write-Host '  Inceptrix MCP â€” Launch Script' -ForegroundColor White
+Write-Host ('â•' * 62) -ForegroundColor DarkGray
 Write-Host ''
 Write-Step 'Checking for port conflicts...'
 
@@ -106,9 +105,9 @@ foreach ($port in @($MCP_PORT, $API_PORT)) {
     Kill-Port $port
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 2 — Stop any existing container
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Step 2 â€” Stop any existing container
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 $existing = docker ps -a --filter "name=^${CONTAINER}$" --format '{{.Names}}' 2>$null
 if ($existing -eq $CONTAINER) {
     Write-Step "Removing existing container '$CONTAINER'..."
@@ -116,9 +115,9 @@ if ($existing -eq $CONTAINER) {
     Write-Ok "Old container removed."
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 3 — Build
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Step 3 â€” Build
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if (-not $NoBuild) {
     Write-Host ''
     Write-Step "Building $IMAGE from Dockerfile.minimal..."
@@ -127,9 +126,9 @@ if (-not $NoBuild) {
     Write-Ok "Image built: $IMAGE"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 4 — Run container
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Step 4 â€” Run container
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Host ''
 Write-Step 'Starting container...'
 
@@ -151,9 +150,9 @@ docker @runArgs | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Fail 'Failed to start container.'; exit 1 }
 Write-Ok "Container '$CONTAINER' started."
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 5 — Wait for health check
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Step 5 â€” Wait for health check
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Host ''
 Write-Step "Waiting for server to become healthy (max 60s)..."
 
@@ -178,20 +177,20 @@ if (-not $healthy) {
 }
 Write-Ok "Server is healthy."
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 6 — Run external tests
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Step 6 â€” Run external tests
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Host ''
 Write-Step "Running test_mcp.py..."
 python test_mcp.py --api-port $API_PORT --mcp-port $MCP_PORT
 $testExit = $LASTEXITCODE
 
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Summary
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 $HOST_IP = Get-HostIP
 Write-Host ''
-Write-Host ('═' * 62) -ForegroundColor $(if ($testExit -eq 0) { 'Green' } else { 'Red' })
+Write-Host ('â•' * 62) -ForegroundColor $(if ($testExit -eq 0) { 'Green' } else { 'Red' })
 
 if ($testExit -eq 0) {
     Write-Host '  All tests passed. Inceptrix MCP is live.' -ForegroundColor Green
@@ -206,7 +205,7 @@ Write-Host "  MCP HTTP   :  http://${HOST_IP}:${MCP_PORT}/"    -ForegroundColor 
 Write-Host ''
 Write-Host "  Logs  :  docker logs -f $CONTAINER"              -ForegroundColor DarkGray
 Write-Host "  Stop  :  docker rm -f $CONTAINER"                -ForegroundColor DarkGray
-Write-Host ('═' * 62) -ForegroundColor $(if ($testExit -eq 0) { 'Green' } else { 'Red' })
+Write-Host ('â•' * 62) -ForegroundColor $(if ($testExit -eq 0) { 'Green' } else { 'Red' })
 Write-Host ''
 
 exit $testExit
