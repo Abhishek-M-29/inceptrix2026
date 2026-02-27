@@ -1,0 +1,19 @@
+# Inceptrix MCP — docker_mcp dependencies
+# Install inside the pentest-toolbox container:
+#   pip install -r requirements.txt
+
+# ── MCP protocol + framework ──────────────────────────────────────────────
+fastmcp>=2.0.0
+
+# ── Web server ────────────────────────────────────────────────────────────
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+
+# ── Data validation ───────────────────────────────────────────────────────
+pydantic>=2.7.0
+
+# ── HTTP client (used by health checks / optional) ────────────────────────
+httpx>=0.27.0
+
+# ── Utilities ─────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0

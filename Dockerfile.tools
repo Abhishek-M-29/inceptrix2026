@@ -1,0 +1,153 @@
+# ============================================================
+# Inceptrix Security Toolbox
+# Extends the Kali sandbox with a full pentesting toolkit
+# Exposes all tools as an MCP (Model Context Protocol) server
+#
+# Strategy: every tool is installed via GitHub releases / pip /
+# git-clone so the build never depends on Kali's apt CDN being
+# reachable.  apt is only used for system deps that are almost
+# certainly already cached in the base layer (no upgrade step).
+# ============================================================
+FROM redamon-kali-sandbox:latest
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    MCP_PORT=8090
+
+# ------------------------------------------------------------
+# 1. System dependencies — use the base-image apt cache only,
+#    never abort if kali.download is unreachable.
+# ------------------------------------------------------------
+RUN apt-get update -o Acquire::ForceIPv4=true || true \
+    && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-venv \
+        ruby \
+        ruby-dev \
+        build-essential \
+        perl \
+        libnet-ssleay-perl \
+        libio-socket-ssl-perl \
+        git \
+        curl \
+        wget \
+        unzip \
+        ca-certificates \
+        nmap \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# ------------------------------------------------------------
+# 2. sqlmap  (pip3 — always available, no apt needed)
+# ------------------------------------------------------------
+RUN pip3 install --break-system-packages sqlmap
+
+# ------------------------------------------------------------
+# 3. wfuzz  (pip3)
+# ------------------------------------------------------------
+RUN pip3 install --break-system-packages wfuzz
+
+# ------------------------------------------------------------
+# 4. nikto  (git clone — official Perl source)
+# ------------------------------------------------------------
+RUN git clone --depth 1 https://github.com/sullo/nikto.git /opt/nikto \
+    && chmod +x /opt/nikto/program/nikto.pl \
+    && ln -sf /opt/nikto/program/nikto.pl /usr/local/bin/nikto \
+    && nikto -Version 2>&1 | head -3
+
+# ------------------------------------------------------------
+# 5. WhatWeb  (git clone — official Ruby source)
+# ------------------------------------------------------------
+RUN git clone --depth 1 https://github.com/urbanadventurer/WhatWeb.git /opt/whatweb \
+    && chmod +x /opt/whatweb/whatweb \
+    && ln -sf /opt/whatweb/whatweb /usr/local/bin/whatweb \
+    && whatweb --version
+
+# ------------------------------------------------------------
+# 6. ffuf  (GitHub release — pre-built amd64 binary)
+# ------------------------------------------------------------
+RUN set -eux; \
+    VER=$(curl -fsSL https://api.github.com/repos/ffuf/ffuf/releases/latest \
+          | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/'); \
+    curl -fsSL "https://github.com/ffuf/ffuf/releases/download/v${VER}/ffuf_${VER}_linux_amd64.tar.gz" \
+         -o /tmp/ffuf.tar.gz; \
+    tar -xzf /tmp/ffuf.tar.gz -C /usr/local/bin/ ffuf; \
+    chmod +x /usr/local/bin/ffuf; \
+    rm /tmp/ffuf.tar.gz; \
+    ffuf -V
+
+# ------------------------------------------------------------
+# 7. nuclei  (GitHub release — pre-built amd64 binary)
+# ------------------------------------------------------------
+RUN set -eux; \
+    VER=$(curl -fsSL https://api.github.com/repos/projectdiscovery/nuclei/releases/latest \
+          | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/'); \
+    curl -fsSL "https://github.com/projectdiscovery/nuclei/releases/download/v${VER}/nuclei_${VER}_linux_amd64.zip" \
+         -o /tmp/nuclei.zip; \
+    unzip -q /tmp/nuclei.zip nuclei -d /usr/local/bin/; \
+    chmod +x /usr/local/bin/nuclei; \
+    rm /tmp/nuclei.zip; \
+    nuclei -version
+
+# ------------------------------------------------------------
+# 8. httpx  (GitHub release — pre-built amd64 binary)
+# ------------------------------------------------------------
+RUN set -eux; \
+    VER=$(curl -fsSL https://api.github.com/repos/projectdiscovery/httpx/releases/latest \
+          | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/'); \
+    curl -fsSL "https://github.com/projectdiscovery/httpx/releases/download/v${VER}/httpx_${VER}_linux_amd64.zip" \
+         -o /tmp/httpx.zip; \
+    unzip -q /tmp/httpx.zip httpx -d /usr/local/bin/; \
+    chmod +x /usr/local/bin/httpx; \
+    rm /tmp/httpx.zip; \
+    httpx -version
+
+# ------------------------------------------------------------
+# 9. Dalfox  (GitHub release — pre-built amd64 binary)
+# ------------------------------------------------------------
+RUN set -eux; \
+    VER=$(curl -fsSL https://api.github.com/repos/hahwul/dalfox/releases/latest \
+          | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/'); \
+    curl -fsSL "https://github.com/hahwul/dalfox/releases/download/v${VER}/dalfox_${VER}_linux_amd64.tar.gz" \
+         -o /tmp/dalfox.tar.gz; \
+    tar -xzf /tmp/dalfox.tar.gz -C /usr/local/bin/ dalfox; \
+    chmod +x /usr/local/bin/dalfox; \
+    rm /tmp/dalfox.tar.gz; \
+    dalfox version
+
+# ------------------------------------------------------------
+# 10. jwt_tool  (git clone — Python)
+# ------------------------------------------------------------
+RUN git clone --depth 1 https://github.com/ticarpi/jwt_tool.git /opt/jwt_tool \
+    && pip3 install --break-system-packages -r /opt/jwt_tool/requirements.txt \
+    && chmod +x /opt/jwt_tool/jwt_tool.py \
+    && ln -sf /opt/jwt_tool/jwt_tool.py /usr/local/bin/jwt_tool
+
+# ------------------------------------------------------------
+# 11. MCP server — exposes every tool via HTTP
+# ------------------------------------------------------------
+COPY backend/expose_tool_mcp.py /opt/mcp/expose_tool_mcp.py
+
+RUN pip3 install --break-system-packages fastmcp
+
+# ------------------------------------------------------------
+# Smoke-test: confirm every tool is on PATH
+# ------------------------------------------------------------
+RUN echo "=== Inceptrix Toolbox smoke test ===" \
+    && nmap      --version        | head -1 \
+    && nikto     -Version         2>&1 | head -2 \
+    && whatweb   --version \
+    && sqlmap    --version \
+    && wfuzz     --version        2>&1 | head -1 \
+    && ffuf      -V \
+    && nuclei    -version \
+    && httpx     -version \
+    && dalfox    version \
+    && python3   /opt/jwt_tool/jwt_tool.py --help 2>&1 | head -3 \
+    && echo "=== All 10 tools OK ==="
+
+# MCP HTTP server port
+EXPOSE 8090
+
+# Start the MCP server — override MCP_PORT env var to change the port
+CMD ["python3", "/opt/mcp/expose_tool_mcp.py"]
