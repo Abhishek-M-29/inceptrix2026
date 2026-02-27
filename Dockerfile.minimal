@@ -41,12 +41,18 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# ── 3. dalfox — not in Kali apt, use official GitHub release binary ───────────
+# ── 3. dalfox — not in Kali apt, grab the exact browser_download_url for
+#               the linux amd64/x86_64 tarball from the GitHub releases API
 RUN set -eux; \
-    VER=$(curl -fsSL https://api.github.com/repos/hahwul/dalfox/releases/latest \
-          | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/'); \
-    curl -fsSL "https://github.com/hahwul/dalfox/releases/download/v${VER}/dalfox_${VER}_linux_amd64.tar.gz" \
-         -o /tmp/dalfox.tar.gz; \
+    URL=$(curl -fsSL https://api.github.com/repos/hahwul/dalfox/releases/latest \
+          | grep '"browser_download_url"' \
+          | grep -i 'linux' \
+          | grep -iE 'amd64|x86_64' \
+          | grep '\.tar\.gz' \
+          | head -1 \
+          | sed -E 's/.*"([^"]+)".*/\1/'); \
+    echo "dalfox download URL: $URL"; \
+    curl -fsSL "$URL" -o /tmp/dalfox.tar.gz; \
     tar -xzf /tmp/dalfox.tar.gz -C /usr/local/bin/ dalfox; \
     chmod +x /usr/local/bin/dalfox; \
     rm /tmp/dalfox.tar.gz
