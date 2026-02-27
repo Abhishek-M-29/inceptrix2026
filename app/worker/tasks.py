@@ -5,6 +5,29 @@ from app.schemas import JobState
 import docker
 import json
 import time
+import os
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STATE TRANSITION DELAYS (seconds)
+# Configure how long each state takes before transitioning to the next
+# Set DEMO_MODE=true for visible state transitions, false for fast execution
+# ═══════════════════════════════════════════════════════════════════════════════
+DEMO_MODE = os.getenv("DEMO_MODE", "true").lower() == "true"
+
+# Delays for each state (in seconds) - only applied in DEMO_MODE
+STATE_DELAYS = {
+    JobState.PROVISIONING: float(os.getenv("DELAY_PROVISIONING", "3")),
+    JobState.PROVISIONED: float(os.getenv("DELAY_PROVISIONED", "1")),
+    JobState.ATTACKING: float(os.getenv("DELAY_ATTACKING", "5")),
+    JobState.NORMALIZING: float(os.getenv("DELAY_NORMALIZING", "2")),
+    JobState.GENERATING_REPORT: float(os.getenv("DELAY_GENERATING_REPORT", "2")),
+}
+
+def state_delay(state: JobState):
+    """Apply configured delay for a state (only in demo mode)."""
+    if DEMO_MODE:
+        delay = STATE_DELAYS.get(state, 1)
+        time.sleep(delay)
 
 # Initialize Docker client
 try:
@@ -23,6 +46,8 @@ def run_scan_task(engagement_id, target_url):
     
     State transitions:
     Queued → Provisioning → Provisioned → Attacking → Normalizing → Generating_Report → Completed
+    
+    In DEMO_MODE, each state has a configurable delay for visibility.
     """
     scan_results = {}
 
@@ -35,12 +60,10 @@ def run_scan_task(engagement_id, target_url):
         
         if docker_client:
             print(f"[{engagement_id}] Provisioning Docker container for {target_url}...")
-            # In real implementation: start target container, create network
-            # Simulate provisioning work
-            time.sleep(0.5)
         else:
             print(f"[{engagement_id}] Mock provisioning (Docker unavailable)...")
-            time.sleep(0.5)
+        
+        state_delay(JobState.PROVISIONING)
         
         # ═══════════════════════════════════════════════════════════════════
         # STAGE 2: PROVISIONED
@@ -50,6 +73,8 @@ def run_scan_task(engagement_id, target_url):
         
         # Store target metadata
         redis_client.set(f"job:{engagement_id}:target", target_url)
+        
+        state_delay(JobState.PROVISIONED)
         
         # ═══════════════════════════════════════════════════════════════════
         # STAGE 3: ATTACKING
@@ -95,7 +120,6 @@ def run_scan_task(engagement_id, target_url):
         else:
             # Fallback Mock Mode
             print(f"[{engagement_id}] Mock attack scan (Docker unavailable)...")
-            time.sleep(2)
             raw_results = {
                 "target": target_url,
                 "timestamp": time.time(),
@@ -105,6 +129,8 @@ def run_scan_task(engagement_id, target_url):
                 ],
                 "note": "Docker unavailable - ran in simulation mode"
             }
+        
+        state_delay(JobState.ATTACKING)
         
         # Store raw findings
         redis_client.set(f"job:{engagement_id}:raw_findings", json.dumps(raw_results))
@@ -135,6 +161,8 @@ def run_scan_task(engagement_id, target_url):
             "findings": normalized_findings
         }
         
+        state_delay(JobState.NORMALIZING)
+        
         # ═══════════════════════════════════════════════════════════════════
         # STAGE 5: GENERATING_REPORT
         # Generate final report
@@ -152,6 +180,8 @@ def run_scan_task(engagement_id, target_url):
         
         # Store final report
         redis_client.set(f"job:{engagement_id}:report", json.dumps(scan_results))
+        
+        state_delay(JobState.GENERATING_REPORT)
         
         # ═══════════════════════════════════════════════════════════════════
         # STAGE 6: COMPLETED
