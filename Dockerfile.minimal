@@ -1,8 +1,10 @@
 # Dockerfile.minimal
 # Single-stage, self-contained build for the Inceptrix MCP pentest server.
-# Base: kalilinux/kali-rolling  (no intermediate images required)
+# Base: kalilinux/kali-rolling (stable rolling Kali; all tools come from Kali apt)
 #
-# Tool install priority: apt (official Kali packages) → GitHub release binary → git clone
+# Policy: anything Kali provides in apt → use apt.
+#         Dalfox: use go install (recommended by upstream).
+#         jwt_tool: use pipx (no --break-system-packages).
 #
 # Build:
 #   docker build -f Dockerfile.minimal -t inceptrix-mcp:latest .
@@ -11,16 +13,18 @@
 #   docker run --rm -p 8090:8090 -p 8091:8091 -p 3000-3010:3000-3010 inceptrix-mcp:latest
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 FROM kalilinux/kali-rolling:latest
+
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# ── 1. Everything from official Kali apt repos ────────────────────────────────
-# Pentest tools: nmap, nikto, whatweb, sqlmap, wfuzz, ffuf, nuclei, httpx-toolkit
-# System deps:   python3+venv, git, curl, unzip, wordlists
-# apt handles all transitive deps (Ruby for whatweb, Perl for nikto, etc.)
+
+# ── 1. Tools from Kali apt repos (stable, Kali‑managed) ───────────────────────
+# nmap, nikto, whatweb, sqlmap, wfuzz, ffuf, nuclei, httpx-toolkit, etc.
+# Kali handles all deps and updates; we trust the repo.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         nmap \
@@ -36,47 +40,63 @@ RUN apt-get update \
         wordlists \
     && rm -rf /var/lib/apt/lists/*
 
-# ── 2. Node.js 20 LTS (NodeSource — official channel for Node releases) ───────
+
+# ── 2. Node.js 20 LTS (NodeSource) ────────────────────────────────────────────
+# Use official NodeSource LTS, not Kali’s bundled nodejs.
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# ── 3. dalfox — not in Kali apt, grab the exact browser_download_url for
-#               the linux amd64/x86_64 tarball from the GitHub releases API
+
+# ── 3. Dalfox — only tool not in Kali apt; install Go then dalfox via go install
+#     Fetch the latest stable Go version dynamically to avoid hardcoded 404s
 RUN set -eux; \
-    URL=$(curl -fsSL https://api.github.com/repos/hahwul/dalfox/releases/latest \
-          | grep '"browser_download_url"' \
-          | grep -i 'linux' \
-          | grep -iE 'amd64|x86_64' \
-          | grep '\.tar\.gz' \
-          | head -1 \
-          | sed -E 's/.*"([^"]+)".*/\1/'); \
-    echo "dalfox download URL: $URL"; \
-    curl -fsSL "$URL" -o /tmp/dalfox.tar.gz; \
-    tar -xzf /tmp/dalfox.tar.gz -C /usr/local/bin/ dalfox; \
-    chmod +x /usr/local/bin/dalfox; \
-    rm /tmp/dalfox.tar.gz
+    GOVER=$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -1); \
+    curl -fsSL "https://go.dev/dl/${GOVER}.linux-amd64.tar.gz" | \
+    tar -C /usr/local -xzf - \
+    && ln -sf /usr/local/go/bin/go /usr/local/bin/go
 
-# ── 4. jwt_tool — not in Kali apt, use official git repo ─────────────────────
-RUN git clone --depth 1 https://github.com/ticarpi/jwt_tool.git /opt/jwt_tool \
-    && pip3 install --break-system-packages -r /opt/jwt_tool/requirements.txt \
-    && chmod +x /opt/jwt_tool/jwt_tool.py \
-    && ln -sf /opt/jwt_tool/jwt_tool.py /usr/local/bin/jwt_tool
+# Install latest stable Dalfox (recommended upstream method)
+RUN go install github.com/hahwul/dalfox/v2@latest \
+    && ln -sf "$(go env GOPATH)/bin/dalfox" /usr/local/bin/dalfox
 
-# ── 5. Python venv for MCP server ────────────────────────────────────────────
+
+# ── 4. jwt_tool — install via pipx (isolated, no --break-system-packages) ────
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        pipx \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configure pipx PATH so it shows up for root
+RUN python3 -m pipx ensurepath
+
+# Clone jwt_tool from official repo
+RUN git clone --depth 1 https://github.com/ticarpi/jwt_tool.git /opt/jwt_tool
+
+# Install into a pipx venv (no touching system site‑packages)
+RUN pipx install --include-deps --python $(which python3) \
+    --no-deps \
+    /opt/jwt_tool \
+    && ln -sf "$(pipx list --json | grep -o '/home/\w\+.local/bin/jwt_tool')" /usr/local/bin/jwt_tool
+
+
+# ── 5. Python venv for MCP server (no impact on Kali’s Python) ───────────────
 ENV VENV=/opt/mcp_venv
 RUN python3 -m venv "${VENV}"
 ENV PATH="${VENV}/bin:${PATH}"
+
 
 WORKDIR /opt/inceptrix_mcp
 COPY docker_mcp/requirements.txt .
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
+
 # ── 6. Copy MCP server source ─────────────────────────────────────────────────
 COPY docker_mcp/ .
 
-# ── 7. Smoke test ────────────────────────────────────────────────────────────
+
+# ── 7. Smoke test (Kali‑managed tools + stable Dalfox + jwt_tool) ────────────
 RUN python3 -c "import fastmcp, fastapi, uvicorn, pydantic; print('Python deps OK')" \
     && nmap --version | head -1 \
     && nikto -Version 2>&1 | head -1 \
@@ -89,19 +109,24 @@ RUN python3 -c "import fastmcp, fastapi, uvicorn, pydantic; print('Python deps O
     && dalfox version \
     && jwt_tool --help 2>&1 | head -1 \
     && node --version && npm --version \
-    && echo "=== All checks passed ==="
+    && echo "=== All checks passed (stable config) ==="
+
 
 RUN chmod +x start_services.sh
+
 
 ENV MCP_PORT=8090 \
     API_PORT=8091 \
     LOG_LEVEL=INFO \
     LOG_FORMAT=json
 
+
 # 8090 MCP HTTP  |  8091 REST API  |  3000-3010 sandbox dev servers
 EXPOSE 8090 8091 3000 3001 3002 3003 3004 3005 3006 3007 3008 3009 3010
 
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
     CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8091/health')" || exit 1
+
 
 ENTRYPOINT ["bash", "start_services.sh"]
