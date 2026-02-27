@@ -83,6 +83,8 @@ RUN pip install --upgrade pip \
 
 # ── 6. Copy MCP server source ─────────────────────────────────────────────────
 COPY docker_mcp/ .
+# Belt-and-suspenders: ensure no stale host bytecode survives the COPY
+RUN find . -name '*.pyc' -delete && find . -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 
 
 # ── 7. Smoke test (Kali‑managed tools + stable Dalfox + jwt_tool) ────────────

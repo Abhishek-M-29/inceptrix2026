@@ -1,0 +1,17 @@
+# Never include Python bytecode cache — stale .pyc files cause Docker to load
+# old compiled modules even after source changes (timestamps zeroed by COPY).
+**/__pycache__
+**/*.pyc
+**/*.pyo
+
+# Dev / local artefacts
+.git
+.gitignore
+.vscode
+*.ps1
+*.sh
+*.md
+*.ipynb
+repos/
+latest/
+stable-env/
