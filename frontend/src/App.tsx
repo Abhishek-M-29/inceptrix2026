@@ -2,6 +2,7 @@ import { useState } from 'react'
 import './App.css'
 import HeroSection from './components/HeroSection'
 import ScanInputPanel from './components/ScanInputPanel'
+import ThreatLandscapeSection from './components/ThreatLandscapeSection'
 import PipelineSection from './components/PipelineSection'
 import ArsenalSection from './components/ArsenalSection'
 import ReportPreviewSection from './components/ReportPreviewSection'
@@ -43,6 +44,7 @@ function App() {
       <main className="relative z-10">
         <HeroSection />
         <ScanInputPanel onScan={handleScan} />
+        <ThreatLandscapeSection />
         <PipelineSection />
         <ArsenalSection />
         <ReportPreviewSection />
