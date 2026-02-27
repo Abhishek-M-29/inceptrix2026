@@ -1,14 +1,14 @@
 # start_server.ps1
-# Builds inceptrix-mcp:latest and runs both servers.
+# Runs inceptrix-mcp:latest (uses existing local image by default).
 #
 # Usage:
 #   .\start_server.ps1           # interactive (logs in foreground)
 #   .\start_server.ps1 -Detach   # run container in background
-#   .\start_server.ps1 -NoBuild  # skip rebuild, just run
+#   .\start_server.ps1 -Build    # rebuild image before starting
 # =============================================================
 param(
     [switch]$Detach,
-    [switch]$NoBuild
+    [switch]$Build
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,8 +33,8 @@ if ($existing -eq $CONTAINER) {
     docker rm -f $CONTAINER | Out-Null
 }
 
-# Build
-if (-not $NoBuild) {
+# Build (only when -Build flag is passed)
+if ($Build) {
     Write-Host ''
     Write-Host "Building $IMAGE ..." -ForegroundColor Cyan
     docker build -f Dockerfile.minimal -t $IMAGE .
