@@ -2,18 +2,21 @@
 #
 # Usage:
 #   .\run.ps1                  # build + port-check (ask before killing) + start + test
-#   .\run.ps1 --kill-dont-ask  # same but kills port conflicts without prompting
+#   .\run.ps1 --kill-dont-ask  # kills port conflicts without prompting
+#   .\run.ps1 --dont-kill      # skip port-conflict check entirely
 #   .\run.ps1 -NoBuild         # skip docker build, just start
 #   .\run.ps1 -TestOnly        # only run test_mcp.py against a running container
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 param(
     [switch]$NoBuild,
     [switch]$TestOnly,
-    [switch]$KillDontAsk        # also accepted as --kill-dont-ask via alias below
+    [switch]$KillDontAsk,       # also accepted as --kill-dont-ask
+    [switch]$DontKill           # also accepted as --dont-kill
 )
 
-# Allow --kill-dont-ask as a CLI argument (PowerShell doesn't natively support - prefix aliases)
+# Allow GNU-style --flags
 if ($args -contains '--kill-dont-ask') { $KillDontAsk = $true }
+if ($args -contains '--dont-kill')     { $DontKill    = $true }
 
 $ErrorActionPreference = 'Stop'
 
@@ -99,10 +102,13 @@ Write-Host ('â•' * 62) -ForegroundColor DarkGray
 Write-Host '  Inceptrix MCP â€” Launch Script' -ForegroundColor White
 Write-Host ('â•' * 62) -ForegroundColor DarkGray
 Write-Host ''
-Write-Step 'Checking for port conflicts...'
-
-foreach ($port in @($MCP_PORT, $API_PORT)) {
-    Kill-Port $port
+if ($DontKill) {
+    Write-Step 'Skipping port-conflict check (--dont-kill).'
+} else {
+    Write-Step 'Checking for port conflicts...'
+    foreach ($port in @($MCP_PORT, $API_PORT)) {
+        Kill-Port $port
+    }
 }
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -115,9 +121,6 @@ if ($existing -eq $CONTAINER) {
     Write-Ok "Old container removed."
 }
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Step 3 â€” Build
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if (-not $NoBuild) {
     Write-Host ''
     Write-Step "Building $IMAGE from Dockerfile.minimal..."
@@ -125,10 +128,6 @@ if (-not $NoBuild) {
     if ($LASTEXITCODE -ne 0) { Write-Fail 'Docker build failed.'; exit 1 }
     Write-Ok "Image built: $IMAGE"
 }
-
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Step 4 â€” Run container
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Host ''
 Write-Step 'Starting container...'
 
@@ -150,9 +149,7 @@ docker @runArgs | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Fail 'Failed to start container.'; exit 1 }
 Write-Ok "Container '$CONTAINER' started."
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Step 5 â€” Wait for health check
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
 Write-Host ''
 Write-Step "Waiting for server to become healthy (max 60s)..."
 
@@ -177,17 +174,11 @@ if (-not $healthy) {
 }
 Write-Ok "Server is healthy."
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Step 6 â€” Run external tests
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Write-Host ''
 Write-Step "Running test_mcp.py..."
 python test_mcp.py --api-port $API_PORT --mcp-port $MCP_PORT
 $testExit = $LASTEXITCODE
 
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-# Summary
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 $HOST_IP = Get-HostIP
 Write-Host ''
 Write-Host ('â•' * 62) -ForegroundColor $(if ($testExit -eq 0) { 'Green' } else { 'Red' })
