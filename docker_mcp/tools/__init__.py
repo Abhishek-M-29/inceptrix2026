@@ -24,6 +24,7 @@ from tools import (
     dalfox,
     jwt_tool,
     sandbox,
+    shell,
 )
 
 _MODULES = [
@@ -38,6 +39,7 @@ _MODULES = [
     dalfox,
     jwt_tool,
     sandbox,
+    shell,
 ]
 
 

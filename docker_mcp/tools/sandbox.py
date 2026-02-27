@@ -247,4 +247,32 @@ def register(mcp: "FastMCP") -> None:
         log.info(f"[{sandbox_id}] Sandbox torn down.")
         return f"Sandbox '{sandbox_id}' stopped and cleaned up."
 
+    # -----------------------------------------------------------------------
+
+    @mcp.tool(name="teardown_all_sandboxes", description=(
+        "Stop ALL running sandbox dev servers and delete every cloned repo.\n\n"
+        "Use this to nuke the entire build environment in one shot — kills every\n"
+        "process and wipes every temp directory created by build_sandbox."
+    ))
+    def teardown_all_sandboxes() -> str:
+        if not _SANDBOXES:
+            return "No sandboxes running — nothing to tear down."
+        ids = list(_SANDBOXES.keys())
+        results = []
+        for sid in ids:
+            info = _SANDBOXES.pop(sid, None)
+            if info is None:
+                continue
+            proc: subprocess.Popen = info["proc"]
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+            shutil.rmtree(info["repo_dir"], ignore_errors=True)
+            log.info(f"[{sid}] Sandbox torn down (bulk).")
+            results.append(f"  {sid}  port={info['port']}  repo={info['github_url']}  → STOPPED & DELETED")
+        return f"Torn down {len(results)} sandbox(es):\n" + "\n".join(results)
+
     log.debug("sandbox tools registered")
