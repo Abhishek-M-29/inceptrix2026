@@ -10,6 +10,36 @@ from app.worker.tasks import run_scan_task
 import uuid
 import json
 
+##################################
+# This is untested, and may break
+
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+
+# -------- Payload Schema --------
+class ScanWebhook(BaseModel):
+    tool: str
+    target: str
+    command_used: str
+    status: str
+
+
+# -------- Webhook Endpoint --------
+@app.post("/webhook/scan")
+async def receive_scan(data: ScanWebhook):
+    print("Webhook received:")
+    print(f"Tool: {data.tool}")
+    print(f"Target: {data.target}")
+    print(f"Command: {data.command_used}")
+    print(f"Status: {data.status}")
+
+    return {"message": "Webhook received successfully"}
+
+#################################
+
 router = APIRouter()
 
 @router.post("/scan", response_model=ScanResponse)
