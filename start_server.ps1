@@ -37,7 +37,7 @@ if ($existing -eq $CONTAINER) {
 if (-not $NoBuild) {
     Write-Host ''
     Write-Host "Building $IMAGE ..." -ForegroundColor Cyan
-    docker build -f docker_mcp/Dockerfile -t $IMAGE .
+    docker build -f Dockerfile.minimal -t $IMAGE .
     if ($LASTEXITCODE -ne 0) { Write-Error 'Docker build failed.'; exit 1 }
 }
 

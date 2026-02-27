@@ -16,9 +16,9 @@ log = logging.getLogger("inceptrix.mcp.tools.httpx")
 
 TOOL_NAME = "httpx"
 DEFAULT_TIMEOUT = 180
-# Use the projectdiscovery Go binary explicitly (installed as httpx-toolkit)
+# Use the projectdiscovery Go binary (installed as httpx-toolkit)
 # so it doesn't get shadowed by the Python httpx CLI in /opt/mcp_venv/bin/httpx.
-_HTTPX_BIN = "/usr/bin/httpx-toolkit"
+_HTTPX_BIN = "httpx-toolkit"
 
 META = {
     "name": TOOL_NAME,
