@@ -41,7 +41,7 @@ log = logging.getLogger("inceptrix.api")
 from executor import run_tool  # noqa: E402
 from models import (  # noqa: E402
     DalfoxInput, FfufInput, HealthResponse, HttpxInput, JwtToolInput,
-    NiktoInput, NmapInput, NucleiInput, SqlmapInput, ToolMeta,
+    NiktoInput, NmapInput, NucleiInput, ShellInput, SqlmapInput, ToolMeta,
     ToolResponse, ToolStatus, ToolsListResponse, WfuzzInput, WhatWebInput,
 )
 import tools.nmap      as _nmap
@@ -54,11 +54,12 @@ import tools.nuclei    as _nuclei
 import tools.httpx_tool as _httpx
 import tools.dalfox    as _dalfox
 import tools.jwt_tool  as _jwt
+import tools.shell     as _shell
 
 _ALL_META = [
     _nmap.META, _nikto.META, _whatweb.META, _sqlmap.META,
     _wfuzz.META, _ffuf.META, _nuclei.META, _httpx.META,
-    _dalfox.META, _jwt.META,
+    _dalfox.META, _jwt.META, _shell.META,
 ]
 
 _API_PORT = int(os.environ.get("API_PORT", 8091))
@@ -245,6 +246,15 @@ async def api_dalfox(body: DalfoxInput):
 async def api_jwt(body: JwtToolInput):
     cmd = ["jwt_tool"] + body.mode.split() + [body.token]
     return _to_response(await asyncio.to_thread(run_tool, "jwt_tool", cmd, timeout=body.timeout))
+
+
+@app.post("/tools/shell", response_model=ToolResponse, tags=["Tools"])
+async def api_shell(body: ShellInput):
+    """Run an arbitrary bash command inside the Kali Linux container."""
+    result = await asyncio.to_thread(
+        run_tool, "shell", ["bash", "-c", body.command], timeout=body.timeout
+    )
+    return _to_response(result)
 
 
 # ---------------------------------------------------------------------------

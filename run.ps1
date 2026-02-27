@@ -123,8 +123,8 @@ if ($existing -eq $CONTAINER) {
 
 if (-not $NoBuild) {
     Write-Host ''
-    Write-Step "Building $IMAGE from Dockerfile.minimal..."
-    docker build -f Dockerfile.minimal -t $IMAGE .
+    Write-Step "Building $IMAGE from Dockerfile.minimal (--no-cache)..."
+    docker build --no-cache -f Dockerfile.minimal -t $IMAGE .
     if ($LASTEXITCODE -ne 0) { Write-Fail 'Docker build failed.'; exit 1 }
     Write-Ok "Image built: $IMAGE"
 }
