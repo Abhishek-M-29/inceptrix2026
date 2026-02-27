@@ -27,31 +27,78 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("inceptrix.mcp.tools.sandbox")
 
-# sandbox_id -> {proc, port, repo_dir, github_url, started_at, framework}
+# sandbox_id -> {proc, port, repo_dir, github_url, started_at, last_used_at, framework}
 _SANDBOXES: dict[str, dict] = {}
 
-# Ports reserved for sandbox apps
-_PORT_RANGE = range(3000, 3011)
+# Ports reserved for sandbox apps — 20 slots: 3000-3019
+_PORT_RANGE = range(3000, 3020)
+_MAX_SANDBOXES = 20
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _evict_lru_sandbox() -> str:
+    """Teardown the least-recently-used sandbox to free a port slot.
+
+    Returns the sandbox_id that was evicted.
+    """
+    if not _SANDBOXES:
+        raise RuntimeError("No sandboxes to evict.")
+    # Find the sandbox with the oldest last_used_at timestamp
+    lru_id = min(_SANDBOXES, key=lambda sid: _SANDBOXES[sid]["last_used_at"])
+    info = _SANDBOXES.pop(lru_id)
+    proc: subprocess.Popen = info["proc"]
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+    shutil.rmtree(info["repo_dir"], ignore_errors=True)
+    log.info(
+        f"[LRU eviction] Evicted sandbox '{lru_id}' "
+        f"(port={info['port']}, last_used={info['last_used_at']:.0f})"
+    )
+    return lru_id
+
+
 def _pick_port(requested: int = 0) -> int:
-    """Return an available port from the sandbox range (or a requested one)."""
+    """Return an available port from the sandbox range (or a requested one).
+
+    If the pool is full (all _MAX_SANDBOXES slots occupied), the least-recently-
+    used sandbox is automatically evicted to reclaim its port before retrying.
+    """
+    def _try_once(candidates: list[int]) -> int | None:
+        used = {v["port"] for v in _SANDBOXES.values()}
+        for port in candidates:
+            if port in used:
+                continue
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                if s.connect_ex(("127.0.0.1", port)) != 0:
+                    return port
+        return None
+
     candidates = [requested] if requested else list(_PORT_RANGE)
-    used = {v["port"] for v in _SANDBOXES.values()}
-    for port in candidates:
-        if port in used:
-            continue
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            if s.connect_ex(("127.0.0.1", port)) != 0:
-                return port
+
+    # First attempt without eviction
+    port = _try_once(candidates)
+    if port is not None:
+        return port
+
+    # Pool is full — evict the LRU sandbox and retry once
+    if len(_SANDBOXES) >= _MAX_SANDBOXES or requested == 0:
+        evicted = _evict_lru_sandbox()
+        log.info(f"Port pool full — evicted LRU sandbox '{evicted}' to make room.")
+        port = _try_once(candidates)
+        if port is not None:
+            return port
+
     raise RuntimeError(
-        f"No free sandbox ports available in range {_PORT_RANGE.start}-{_PORT_RANGE.stop - 1}. "
-        "Tear down an existing sandbox first."
+        f"No free sandbox ports available in range {_PORT_RANGE.start}-{_PORT_RANGE.stop - 1} "
+        f"even after LRU eviction. All {_MAX_SANDBOXES} slots may be in use by OS processes."
     )
 
 
@@ -184,6 +231,7 @@ def register(mcp: "FastMCP") -> None:
             )
 
         # ── 6. Register sandbox ───────────────────────────────────────────
+        now = time.time()
         _SANDBOXES[sandbox_id] = {
             "proc": proc,
             "port": chosen_port,
@@ -191,9 +239,11 @@ def register(mcp: "FastMCP") -> None:
             "github_url": github_url,
             "framework": framework,
             "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "last_used_at": now,  # updated when sandbox is actively accessed
         }
 
-        log.info(f"[{sandbox_id}] Sandbox ready at port {chosen_port}")
+        slots_used = len(_SANDBOXES)
+        log.info(f"[{sandbox_id}] Sandbox ready at port {chosen_port} ({slots_used}/{_MAX_SANDBOXES} slots used)")
         return (
             f"Sandbox ready.\n"
             f"\n"
@@ -201,6 +251,7 @@ def register(mcp: "FastMCP") -> None:
             f"  framework  : {framework}\n"
             f"  target_url : http://0.0.0.0:{chosen_port}\n"
             f"  pentest at : http://<your-host-ip>:{chosen_port}\n"
+            f"  slots used : {slots_used}/{_MAX_SANDBOXES}\n"
             f"\n"
             f"Use teardown_sandbox(sandbox_id='{sandbox_id}') when done."
         )
@@ -213,16 +264,22 @@ def register(mcp: "FastMCP") -> None:
     ))
     def list_sandboxes() -> str:
         if not _SANDBOXES:
-            return "No sandboxes running."
-        lines = ["Running sandboxes:\n"]
-        for sid, info in _SANDBOXES.items():
+            return f"No sandboxes running. ({_MAX_SANDBOXES} slots available)"
+        lines = [f"Running sandboxes ({len(_SANDBOXES)}/{_MAX_SANDBOXES} slots used):\n"]
+        # Sort by last_used_at ascending so the LRU candidate is shown first
+        for sid, info in sorted(_SANDBOXES.items(), key=lambda kv: kv[1]["last_used_at"]):
             alive = info["proc"].poll() is None
+            age_s = int(time.time() - info["last_used_at"])
+            lru_marker = " ← LRU (evicted next if pool is full)" if sid == min(
+                _SANDBOXES, key=lambda s: _SANDBOXES[s]["last_used_at"]
+            ) else ""
             lines.append(
                 f"  {sid}  port={info['port']}  "
                 f"framework={info['framework']}  "
                 f"alive={alive}  "
-                f"repo={info['github_url']}  "
-                f"started={info['started_at']}"
+                f"last_used={age_s}s ago  "
+                f"repo={info['github_url']}"
+                f"{lru_marker}"
             )
         return "\n".join(lines)
 

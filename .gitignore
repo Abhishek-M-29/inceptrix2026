@@ -16,4 +16,7 @@ __pycache__/
 repos/
 
 # Editor
-.vscode/
+.vscode/3
+
+
+.env

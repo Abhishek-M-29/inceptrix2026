@@ -24,7 +24,8 @@ $IMAGE     = 'inceptrix-mcp:latest'
 $CONTAINER = 'inceptrix-mcp'
 $MCP_PORT  = 8090
 $API_PORT  = 8091
-$SANDBOX_PORTS = 3000..3010
+$SANDBOX_PORTS = 3000..3019
+
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Helpers
@@ -33,6 +34,22 @@ function Write-Step($msg) { Write-Host "  >> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host "  [OK]  $msg" -ForegroundColor Green }
 function Write-Fail($msg) { Write-Host "  [!!]  $msg" -ForegroundColor Red }
 function Write-Warn($msg) { Write-Host "  [??]  $msg" -ForegroundColor Yellow }
+
+# ── Read .env for BACKEND_URL ─────────────────────────────────────────────────
+$BACKEND_URL = $null
+$envFile = Join-Path $PSScriptRoot '.env'
+if (Test-Path $envFile) {
+    Get-Content $envFile | ForEach-Object {
+        if ($_ -match '^\s*BACKEND_URL\s*=\s*(.+)$') {
+            $BACKEND_URL = $Matches[1].Trim()
+        }
+    }
+}
+if ($BACKEND_URL) {
+    Write-Ok "BACKEND_URL loaded: $BACKEND_URL"
+} else {
+    Write-Warn "BACKEND_URL not set — webhooks will be disabled."
+}
 
 function Get-HostIP {
     $nics = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
@@ -131,14 +148,32 @@ if (-not $NoBuild) {
 Write-Host ''
 Write-Step 'Starting container...'
 
+# ── Pre-flight: verify webhook endpoint reachable ─────────────────────────────
+if ($BACKEND_URL) {
+    $webhookUrl = $BACKEND_URL.TrimEnd('/') + '/webhook/scan'
+    Write-Step "Pre-flight: checking webhook at $webhookUrl ..."
+    try {
+        $testBody = '{"tool":"preflight","target":"test","command_used":"preflight","status":"started"}'
+        $resp = Invoke-WebRequest -Uri $webhookUrl -Method POST `
+            -ContentType 'application/json' -Body $testBody `
+            -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+        Write-Ok "Webhook reachable — HTTP $($resp.StatusCode)"
+    } catch {
+        Write-Warn "Webhook pre-flight FAILED: $_"
+        Write-Warn "MCP will still start but webhook events may be silently dropped."
+    }
+}
+
 $sandboxPortArgs = ($SANDBOX_PORTS | ForEach-Object { "-p", "${_}:${_}" })
+
+$backendEnvArgs = if ($BACKEND_URL) { @('-e', "BACKEND_URL=${BACKEND_URL}") } else { @() }
 
 $runArgs = @(
     'run', '-d',
     '--name', $CONTAINER,
     '-p', "${MCP_PORT}:${MCP_PORT}",
     '-p', "${API_PORT}:${API_PORT}"
-) + $sandboxPortArgs + @(
+) + $sandboxPortArgs + $backendEnvArgs + @(
     '-e', "MCP_PORT=${MCP_PORT}",
     '-e', "API_PORT=${API_PORT}",
     '-e', 'LOG_LEVEL=INFO',

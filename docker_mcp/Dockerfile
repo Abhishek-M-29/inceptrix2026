@@ -54,8 +54,8 @@ RUN chmod +x start_services.sh
 
 # 8090 — MCP HTTP  (mcp_server.py)
 # 8091 — REST API  (api_server.py)
-# 3000-3010 — sandbox dev servers
-EXPOSE ${MCP_PORT} ${API_PORT} 3000 3001 3002 3003 3004 3005 3006 3007 3008 3009 3010
+# 3000-3019 — sandbox dev servers (20 slots)
+EXPOSE ${MCP_PORT} ${API_PORT} 3000 3001 3002 3003 3004 3005 3006 3007 3008 3009 3010 3011 3012 3013 3014 3015 3016 3017 3018 3019
 
 # ── Health check ─────────────────────────────────────────────────────────
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \

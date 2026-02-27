@@ -11,16 +11,62 @@ Responsibilities
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shlex
 import subprocess
+import threading
 import time
+import urllib.request
 import uuid
 from dataclasses import dataclass, field
 from typing import List, Optional
 
 from logging_config import TRACE, correlation_id
+
+# ---------------------------------------------------------------------------
+# Webhook
+# ---------------------------------------------------------------------------
+
+_BACKEND_URL: str | None = os.environ.get("BACKEND_URL")
+_WEBHOOK_URL: str | None = (
+    _BACKEND_URL.rstrip("/") + "/webhook/scan" if _BACKEND_URL else None
+)
+
+log_wh = logging.getLogger("inceptrix.mcp.webhook")
+
+
+def _fire_webhook(tool_name: str, cmd: List[str], status: str) -> None:
+    """POST a webhook event to the backend in a daemon thread (non-blocking)."""
+    url = _WEBHOOK_URL
+    if not url:
+        return
+
+    payload = json.dumps({
+        "tool": tool_name,
+        "target": cmd[-1] if cmd else "",
+        "command_used": shlex.join(cmd),
+        "status": status,
+    }).encode()
+
+    def _post() -> None:
+        try:
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            resp = urllib.request.urlopen(req, timeout=5)
+            log_wh.info(
+                "WEBHOOK [%s] → %s  tool=%s  HTTP %s",
+                status, url, tool_name, resp.status,
+            )
+        except Exception as exc:
+            log_wh.warning("WEBHOOK [%s] → %s  FAILED: %s", status, url, exc)
+
+    threading.Thread(target=_post, daemon=True, name=f"webhook-{tool_name}-{status}").start()
 
 log = logging.getLogger("inceptrix.mcp.executor")
 
@@ -106,6 +152,9 @@ def run_tool(
     """
     run = ToolRun(tool_name=tool_name, cmd=cmd, timeout=timeout)
 
+    # Fire webhook — started
+    _fire_webhook(tool_name, cmd, "started")
+
     # Set correlation ID so every log line from this run is linkable
     token = correlation_id.set(run.run_id)
 
@@ -152,7 +201,6 @@ def run_tool(
                     extra={"run_id": run.run_id, "tool": tool_name},
                 )
 
-        import threading
         t_out = threading.Thread(target=_drain_stdout, daemon=True)
         t_out.start()
 
@@ -215,6 +263,8 @@ def run_tool(
     )
 
     _log_result(result)
+    # Fire webhook — ended
+    _fire_webhook(tool_name, cmd, "ended")
     return result
 
 

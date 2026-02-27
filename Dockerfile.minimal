@@ -23,8 +23,22 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 
 # ── 1. Tools from Kali apt repos (stable, Kali‑managed) ───────────────────────
-# nmap, nikto, whatweb, sqlmap, wfuzz, ffuf, nuclei, httpx-toolkit, etc.
-# Kali handles all deps and updates; we trust the repo.
+# Use kali.download (Cloudflare CDN) — far more reliable than http.kali.org geo-routing.
+# Also configure apt to retry automatically on transient failures.
+RUN printf 'deb http://kali.download/kali kali-rolling main contrib non-free non-free-firmware\n' \
+        > /etc/apt/sources.list \
+    && printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\n' \
+        > /etc/apt/apt.conf.d/99retry
+
+# First install ca-certificates over plain HTTP, then upgrade apt to HTTPS capable
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Switch to HTTPS now that we have ca-certificates
+RUN printf 'deb https://kali.download/kali kali-rolling main contrib non-free non-free-firmware\n' \
+        > /etc/apt/sources.list
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         nmap \
@@ -36,7 +50,7 @@ RUN apt-get update \
         nuclei \
         httpx-toolkit \
         python3 python3-pip python3-venv \
-        git curl unzip ca-certificates \
+        git curl unzip \
         wordlists \
     && rm -rf /var/lib/apt/lists/*
 
