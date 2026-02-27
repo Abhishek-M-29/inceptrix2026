@@ -6,53 +6,56 @@ import type { ScanStage } from '../data/scanStages'
    Sub-components
    ───────────────────────────────────────────────── */
 
-/** Radar ring animation for active stage */
-function RadarRing({ stage, active }: { stage: ScanStage; active: boolean }) {
-  const rings = [1, 2, 3]
+/** Clean stage status indicator — replaces radar ring */
+function StageIndicator({ stage, active }: { stage: ScanStage; active: boolean }) {
   return (
-    <div className="relative w-[160px] h-[160px] shrink-0">
-      {rings.map((r, i) => (
-        <div
-          key={r}
-          className="absolute top-1/2 left-1/2 rounded-full"
-          style={{
-            width: 50 * r,
-            height: 50 * r,
-            transform: 'translate(-50%, -50%)',
-            border: `1px solid ${active ? stage.color : 'var(--color-border-subtle)'}`,
-            opacity: active ? 1 - i * 0.25 : 0.15,
-            animation: active ? `radar-pulse ${1.5 + i * 0.5}s ease-out infinite` : 'none',
-            animationDelay: `${i * 0.3}s`,
-            transition: 'all 0.5s ease',
-            boxShadow: active ? `0 0 ${8 + i * 4}px ${stage.glow}` : 'none',
-          }}
-        />
-      ))}
-      {/* Sweep line */}
-      {active && (
-        <div
-          className="absolute top-1/2 left-1/2"
-          style={{
-            width: '50%',
-            height: 1,
-            background: `linear-gradient(90deg, transparent, ${stage.color})`,
-            transformOrigin: 'left center',
-            animation: 'radar-sweep 2s linear infinite',
-          }}
-        />
-      )}
-      {/* Center dot */}
+    <div className="relative w-[120px] h-[120px] shrink-0 flex items-center justify-center">
+      {/* Outer ring — solid, no pulse */}
       <div
-        className="absolute top-1/2 left-1/2 rounded-full"
+        className="absolute inset-0 rounded-full transition-all duration-700"
         style={{
-          width: 8,
-          height: 8,
-          transform: 'translate(-50%, -50%)',
-          background: active ? stage.color : 'var(--color-border-subtle)',
-          boxShadow: active ? `0 0 12px ${stage.color}` : 'none',
-          transition: 'all 0.5s',
+          border: `2px solid ${active ? stage.color : 'var(--color-border-subtle)'}`,
+          opacity: active ? 0.25 : 0.1,
         }}
       />
+      {/* Inner ring */}
+      <div
+        className="absolute rounded-full transition-all duration-700"
+        style={{
+          inset: 14,
+          border: `2px solid ${active ? stage.color : 'var(--color-border-subtle)'}`,
+          opacity: active ? 0.5 : 0.1,
+        }}
+      />
+      {/* Center circle with stage code */}
+      <div
+        className="relative w-14 h-14 rounded-full flex items-center justify-center transition-all duration-700"
+        style={{
+          background: active ? `${stage.color}18` : 'transparent',
+          border: `2px solid ${active ? stage.color : 'var(--color-border-subtle)'}`,
+          boxShadow: active ? `0 0 24px ${stage.glow}` : 'none',
+        }}
+      >
+        <span
+          className="font-display text-xl tracking-wider transition-colors duration-500"
+          style={{ color: active ? stage.color : 'var(--color-text-dim)' }}
+        >
+          {stage.code}
+        </span>
+      </div>
+      {/* Slow rotating dash — subtle, not cheap */}
+      {active && (
+        <svg className="absolute inset-0 w-full h-full" style={{ animation: 'scan-slow-rotate 12s linear infinite' }}>
+          <circle
+            cx="60" cy="60" r="56"
+            fill="none"
+            stroke={stage.color}
+            strokeWidth="1.5"
+            strokeDasharray="8 16"
+            opacity="0.35"
+          />
+        </svg>
+      )}
     </div>
   )
 }
@@ -131,12 +134,10 @@ function StageNode({
   stage,
   status,
   isLast,
-  nextStage,
 }: {
   stage: ScanStage
   status: 'pending' | 'active' | 'done'
   isLast: boolean
-  nextStage?: ScanStage
 }) {
   const isDone = status === 'done'
   const isActive = status === 'active'
@@ -144,26 +145,23 @@ function StageNode({
   return (
     <div className="flex flex-col items-center">
       <div className="flex flex-col items-center gap-1.5">
-        {/* Circle */}
+        {/* Circle — solid, no pulsing animation */}
         <div
-          className="w-11 h-11 rounded-full flex items-center justify-center relative transition-all duration-400"
+          className="w-10 h-10 rounded-full flex items-center justify-center relative transition-all duration-500"
           style={{
             border: `2px solid ${isDone || isActive ? stage.color : 'var(--color-border-subtle)'}`,
             background: isDone
-              ? `${stage.color}22`
+              ? `${stage.color}20`
               : isActive
-                ? `${stage.color}15`
+                ? `${stage.color}12`
                 : 'transparent',
             boxShadow: isActive
-              ? `0 0 20px ${stage.glow}, 0 0 40px ${stage.glow}`
-              : isDone
-                ? `0 0 10px ${stage.glow}`
-                : 'none',
-            animation: isActive ? 'active-node-pulse 2s ease-in-out infinite' : 'none',
+              ? `0 0 16px ${stage.glow}`
+              : 'none',
           }}
         >
           {isDone ? (
-            <svg width="16" height="16" viewBox="0 0 18 18">
+            <svg width="14" height="14" viewBox="0 0 18 18">
               <polyline
                 points="3,9 7,13 15,5"
                 fill="none"
@@ -180,21 +178,10 @@ function StageNode({
               {stage.code}
             </span>
           )}
-          {isActive && (
-            <div
-              className="absolute rounded-full"
-              style={{
-                inset: -4,
-                border: `1px solid ${stage.color}`,
-                opacity: 0.5,
-                animation: 'scan-ripple 1.5s ease-out infinite',
-              }}
-            />
-          )}
         </div>
         {/* Label */}
         <span
-          className="font-mono text-[0.5rem] font-bold tracking-[0.12em] text-center max-w-[72px] transition-colors duration-300"
+          className="font-mono text-[0.55rem] font-bold tracking-[0.1em] text-center max-w-[72px] transition-colors duration-300"
           style={{
             color: isDone || isActive ? stage.color : 'var(--color-text-dim)',
           }}
@@ -202,26 +189,18 @@ function StageNode({
           {stage.label}
         </span>
       </div>
-      {/* Connector */}
+      {/* Connector — solid 2px, no flow animation */}
       {!isLast && (
         <div
-          className="w-px h-7 mt-1 relative overflow-hidden transition-all duration-500"
+          className="h-6 mt-1 transition-all duration-500"
           style={{
+            width: 2,
             background: isDone
-              ? `linear-gradient(180deg, ${stage.color}, ${nextStage?.color || stage.color})`
+              ? stage.color
               : 'var(--color-border-subtle)',
+            opacity: isDone ? 0.6 : 0.3,
           }}
-        >
-          {isDone && (
-            <div
-              className="absolute inset-0 opacity-40"
-              style={{
-                background: 'linear-gradient(180deg, transparent, white, transparent)',
-                animation: 'flow-down 1.5s linear infinite',
-              }}
-            />
-          )}
-        </div>
+        />
       )}
     </div>
   )
@@ -248,26 +227,25 @@ function SeverityBar({
   }, [animate, item.count, delay, max])
 
   return (
-    <div className="mb-2.5">
-      <div className="flex justify-between mb-1">
+    <div className="mb-3">
+      <div className="flex justify-between mb-1.5">
         <span
-          className="font-mono text-[0.6rem] tracking-[0.1em]"
+          className="font-mono text-[0.7rem] tracking-[0.08em]"
           style={{ color: item.color }}
         >
           {item.label}
         </span>
-        <span className="font-mono text-[0.6rem] text-text-dim">
+        <span className="font-mono text-[0.7rem] text-text-muted">
           {animate ? item.count : 0}
         </span>
       </div>
-      <div className="h-1 bg-bg-deep rounded-sm overflow-hidden">
+      <div className="h-1.5 bg-bg-surface rounded-sm overflow-hidden">
         <div
           className="h-full rounded-sm"
           style={{
             width: `${width}%`,
             background: item.color,
-            boxShadow: `0 0 8px ${item.color}`,
-            transition: 'width 1s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            transition: 'width 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         />
       </div>
@@ -355,46 +333,45 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
     <div className="fixed inset-0 z-50 bg-bg-deep flex flex-col" style={{ animation: 'scan-view-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1) both' }}>
 
       {/* ── TOP BAR ── */}
-      <div className="shrink-0 border-b border-border-subtle px-5 md:px-8 py-3 flex items-center justify-between bg-bg-deep/95 backdrop-blur-sm">
+      <div className="shrink-0 border-b border-border-subtle px-6 md:px-8 py-3.5 flex items-center justify-between bg-bg-deep/95 backdrop-blur-sm">
         <div className="flex items-center gap-4">
           {/* Back button */}
           <button
             onClick={onBack}
-            className="font-mono text-[0.7rem] text-text-dim hover:text-accent transition-colors tracking-wider cursor-crosshair"
+            className="font-mono text-xs text-text-muted hover:text-accent transition-colors tracking-wider cursor-crosshair"
           >
             ← ABORT
           </button>
-          <div className="w-px h-4 bg-border-subtle" />
-          <span className="font-display text-lg text-accent tracking-[0.15em]" style={{ textShadow: '0 0 20px rgba(0,229,255,0.3)' }}>
+          <div className="w-px h-5 bg-border-subtle" />
+          <span className="font-display text-xl text-accent tracking-[0.15em]" style={{ textShadow: '0 0 20px rgba(0,229,255,0.3)' }}>
             REDSHELL
           </span>
-          <span className="text-text-dim text-[0.6rem] tracking-[0.1em] hidden sm:inline">
-            ENGAGEMENT // <span className="text-redshell">
-              {repoPath.slice(0, 24)}{repoPath.length > 24 ? '...' : ''}
+          <span className="text-text-muted text-xs tracking-[0.08em] hidden sm:inline">
+            ENGAGEMENT // <span className="text-redshell font-bold">
+              {repoPath.slice(0, 28)}{repoPath.length > 28 ? '…' : ''}
             </span>
           </span>
         </div>
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-6">
           <div className="text-right hidden sm:block">
-            <div className="font-label text-[0.5rem] text-text-dim tracking-[0.1em]">ELAPSED</div>
+            <div className="font-label text-[0.6rem] text-text-muted tracking-[0.1em]">ELAPSED</div>
             <div
-              className="font-mono text-base font-bold"
+              className="font-mono text-lg font-bold tabular-nums"
               style={{ color: isRunning ? activeStage.color : 'var(--color-success)' }}
             >
               {formatTime(elapsed)}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <div
               className="w-2 h-2 rounded-full"
               style={{
                 background: isRunning ? '#FF3B3B' : 'var(--color-success)',
-                boxShadow: isRunning ? '0 0 12px #FF3B3B' : '0 0 12px var(--color-success)',
-                animation: isRunning ? 'dot-blink 1s ease-in-out infinite' : 'none',
+                boxShadow: isRunning ? '0 0 8px #FF3B3B' : '0 0 8px var(--color-success)',
               }}
             />
             <span
-              className="font-label text-[0.55rem] tracking-[0.15em]"
+              className="font-label text-xs tracking-[0.15em] font-bold"
               style={{ color: isRunning ? '#FF3B3B' : 'var(--color-success)' }}
             >
               {isRunning ? 'LIVE' : 'COMPLETE'}
@@ -404,12 +381,12 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
       </div>
 
       {/* ── TARGET URL BAR ── */}
-      <div className="shrink-0 px-5 md:px-8 py-2.5 border-b border-border-subtle/50 bg-bg-surface/50 flex items-center gap-3">
-        <span className="font-label text-[0.5rem] text-text-dim tracking-[0.1em]">TARGET</span>
-        <span className="text-text-dim text-[0.6rem]">→</span>
-        <span className="font-mono text-[0.68rem] text-text-dim">https://github.com/</span>
-        <span className="font-mono text-[0.68rem] text-text-primary font-bold">{repoPath}</span>
-        <div className="ml-auto font-label text-[0.5rem] text-text-dim tracking-[0.1em]">
+      <div className="shrink-0 px-6 md:px-8 py-2.5 border-b border-border-subtle/50 bg-bg-surface/50 flex items-center gap-3">
+        <span className="font-label text-[0.65rem] text-text-muted tracking-[0.1em]">TARGET</span>
+        <span className="text-text-muted">→</span>
+        <span className="font-mono text-[0.8rem] text-text-muted">https://github.com/</span>
+        <span className="font-mono text-[0.8rem] text-text-primary font-bold">{repoPath}</span>
+        <div className="ml-auto font-label text-[0.65rem] text-text-muted tracking-[0.1em]">
           {SCAN_STAGES.filter((_, i) => stageStatuses[i] === 'done').length}/{SCAN_STAGES.length} PHASES
         </div>
       </div>
@@ -425,7 +402,6 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
               stage={stage}
               status={stageStatuses[i]}
               isLast={i === SCAN_STAGES.length - 1}
-              nextStage={SCAN_STAGES[i + 1]}
             />
           ))}
         </div>
@@ -434,58 +410,58 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
         <div className="p-5 md:p-7 flex flex-col gap-5 overflow-y-auto">
           {/* Stage Header */}
           <div style={{ animation: 'fade-slide-up 0.4s ease' }} key={showReport ? 'report' : activeStage.id}>
-            <div className="flex items-baseline gap-3 mb-1">
+            <div className="flex items-baseline gap-4 mb-2">
               <span
-                className="font-display text-[2.2rem] sm:text-[2.8rem] leading-none tracking-[0.08em]"
+                className="font-display text-[2.8rem] sm:text-[3.5rem] leading-none tracking-[0.06em]"
                 style={{
                   color: showReport ? 'var(--color-success)' : activeStage.color,
-                  textShadow: `0 0 30px ${showReport ? 'rgba(0,255,136,0.3)' : activeStage.glow}`,
+                  textShadow: `0 0 40px ${showReport ? 'rgba(0,255,136,0.2)' : activeStage.glow}`,
                 }}
               >
                 {showReport ? 'OPERATION COMPLETE' : activeStage.label}
               </span>
               {!showReport && (
-                <span className="font-label text-[0.5rem] text-text-dim tracking-[0.15em] pl-2 border-l border-border-subtle">
+                <span className="font-label text-xs text-text-muted tracking-[0.15em] pl-3 border-l border-border-subtle">
                   PHASE {activeStage.code} / 06
                 </span>
               )}
             </div>
-            <div className="font-mono text-[0.7rem] text-text-dim tracking-[0.08em]">
+            <div className="font-mono text-sm text-text-muted tracking-[0.04em]">
               {showReport ? 'All containers stopped. Report ready.' : activeStage.sublabel}
             </div>
           </div>
 
-          {/* Radar + Status Row */}
+          {/* Status indicator + current operation */}
           {!showReport && (
             <div
-              className="flex items-center gap-6 p-5 border border-border-subtle"
+              className="flex items-center gap-8 p-6"
               style={{
-                borderColor: `${activeStage.color}22`,
-                background: `${activeStage.color}08`,
+                border: `1px solid ${activeStage.color}18`,
+                background: `${activeStage.color}06`,
                 borderLeft: `3px solid ${activeStage.color}`,
               }}
             >
-              <RadarRing stage={activeStage} active />
+              <StageIndicator stage={activeStage} active />
               <div className="flex-1 min-w-0">
-                <div className="mb-3">
-                  <div className="font-label text-[0.5rem] text-text-dim tracking-[0.1em] mb-1">
+                <div className="mb-4">
+                  <div className="font-label text-[0.7rem] text-text-muted tracking-[0.12em] mb-1.5">
                     CURRENT OPERATION
                   </div>
                   <div
-                    className="font-mono text-sm font-bold tracking-[0.05em]"
+                    className="font-mono text-base font-bold tracking-[0.04em]"
                     style={{ color: activeStage.color }}
                   >
                     {activeStage.sublabel.toUpperCase()}
                   </div>
                 </div>
-                {/* Animated progress bar */}
-                <div className="h-[2px] bg-bg-deep rounded-sm overflow-hidden">
+                {/* Progress bar — solid, no flashy animation */}
+                <div className="h-1 bg-bg-surface rounded-full overflow-hidden">
                   <div
-                    className="h-full"
+                    className="h-full rounded-full"
                     style={{
-                      background: `linear-gradient(90deg, ${activeStage.color}, ${activeStage.color}88)`,
-                      boxShadow: `0 0 8px ${activeStage.color}`,
-                      animation: 'scan-progress-flow 2s ease-in-out infinite alternate',
+                      background: activeStage.color,
+                      opacity: 0.7,
+                      animation: 'scan-progress-flow 3s ease-in-out infinite alternate',
                     }}
                   />
                 </div>
@@ -498,19 +474,19 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
             <div className="flex flex-col">
               {/* Terminal header */}
               <div
-                className="flex items-center gap-2 px-4 py-2 bg-bg-card border border-border-subtle border-b-0"
-                style={{ borderTop: `1px solid ${activeStage.color}44` }}
+                className="flex items-center gap-2 px-4 py-2.5 bg-bg-card border border-border-subtle border-b-0"
+                style={{ borderTop: `2px solid ${activeStage.color}55` }}
               >
                 <div className="flex gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-redshell opacity-60" />
                   <div className="w-2.5 h-2.5 rounded-full bg-warning opacity-40" />
                   <div className="w-2.5 h-2.5 rounded-full bg-success opacity-40" />
                 </div>
-                <span className="font-label text-[0.55rem] text-text-dim tracking-wider ml-2">
+                <span className="font-label text-[0.65rem] text-text-muted tracking-wider ml-2">
                   kali@redshell-{activeStage.id.toLowerCase()} ~ %
                 </span>
                 <span
-                  className="ml-auto font-label text-[0.5rem] tracking-[0.1em]"
+                  className="ml-auto font-label text-[0.6rem] tracking-[0.1em]"
                   style={{ color: activeStage.color }}
                 >
                   LIVE OUTPUT
@@ -529,19 +505,19 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
             <div style={{ animation: 'scan-report-reveal 0.6s cubic-bezier(0.34,1.56,0.64,1)' }}>
               <div className="border border-border-subtle bg-bg-card/60 p-6" style={{ borderTop: '2px solid var(--color-redshell)' }}>
                 {/* Report header */}
-                <div className="mb-5">
-                  <div className="font-label text-[0.5rem] text-text-dim tracking-[0.15em] mb-1.5">
+                <div className="mb-6">
+                  <div className="font-label text-[0.65rem] text-text-muted tracking-[0.15em] mb-2">
                     SECURITY ASSESSMENT REPORT // RS-2026-a3f9
                   </div>
-                  <div className="font-display text-xl text-text-primary tracking-[0.1em]">
+                  <div className="font-display text-2xl text-text-primary tracking-[0.08em]">
                     TARGET: {repoPath.toUpperCase()}
                   </div>
-                  <div className="flex gap-4 mt-2">
-                    <span className="font-mono text-[0.6rem] text-text-dim">Duration: {formatTime(elapsed)}</span>
+                  <div className="flex gap-4 mt-3">
+                    <span className="font-mono text-xs text-text-muted">Duration: {formatTime(elapsed)}</span>
                     <span className="text-border-subtle">·</span>
-                    <span className="font-mono text-[0.6rem] text-text-dim">Scan ID: a3f9e7c2</span>
+                    <span className="font-mono text-xs text-text-muted">Scan ID: a3f9e7c2</span>
                     <span className="text-border-subtle">·</span>
-                    <span className="font-mono text-[0.6rem] text-text-dim">28 Findings</span>
+                    <span className="font-mono text-xs text-text-muted">28 Findings</span>
                   </div>
                 </div>
 
@@ -556,11 +532,11 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
                         background: `${s.color}0a`,
                       }}
                     >
-                      <div className="font-display text-2xl leading-none" style={{ color: s.color }}>
+                      <div className="font-display text-3xl leading-none" style={{ color: s.color }}>
                         {s.count}
                       </div>
                       <div
-                        className="font-label text-[0.5rem] tracking-[0.12em] mt-1"
+                        className="font-label text-[0.65rem] tracking-[0.1em] mt-1.5"
                         style={{ color: s.color }}
                       >
                         {s.label}
@@ -571,7 +547,7 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
 
                 {/* Sample finding */}
                 <div className="border-t border-border-subtle pt-5">
-                  <div className="font-label text-[0.5rem] text-text-dim tracking-[0.1em] mb-3">
+                  <div className="font-label text-[0.65rem] text-text-muted tracking-[0.12em] mb-3">
                     TOP FINDING PREVIEW
                   </div>
                   <div
@@ -583,38 +559,38 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
                     }}
                   >
                     <div className="flex justify-between items-start mb-2">
-                      <span className="font-mono text-[0.75rem] text-text-primary font-bold">
+                      <span className="font-mono text-sm text-text-primary font-bold">
                         RS-001 — SQL Injection in /api/search
                       </span>
                       <span
-                        className="font-label text-[0.5rem] px-2 py-0.5 tracking-[0.1em]"
+                        className="font-label text-[0.6rem] px-2.5 py-0.5 tracking-[0.1em]"
                         style={{
-                          background: 'rgba(255,59,59,0.2)',
+                          background: 'rgba(255,59,59,0.15)',
                           color: '#FF3B3B',
-                          animation: 'severity-pulse 2s ease-in-out infinite',
+                          border: '1px solid rgba(255,59,59,0.3)',
                         }}
                       >
                         CRITICAL
                       </span>
                     </div>
-                    <div className="font-mono text-[0.65rem] text-text-dim mb-2.5">
+                    <div className="font-mono text-xs text-text-muted mb-3 leading-relaxed">
                       The parameter 'q' in /api/search is vulnerable to error-based SQL injection allowing full database extraction.
                     </div>
-                    <div className="p-2 bg-bg-deep border border-border-subtle font-mono text-[0.65rem] text-success">
+                    <div className="p-2.5 bg-bg-deep border border-border-subtle font-mono text-xs text-success">
                       GET /api/search?q=1'+AND+EXTRACTVALUE(1,CONCAT(0x7e,version()))--
                     </div>
                   </div>
                 </div>
 
                 {/* CTA Buttons */}
-                <div className="flex gap-3 mt-5">
+                <div className="flex gap-3 mt-6">
                   <button
                     onClick={handleReset}
-                    className="flex-1 py-3 font-mono text-[0.68rem] font-bold tracking-[0.15em] border border-accent text-accent bg-transparent hover:bg-accent/10 transition-all cursor-crosshair"
+                    className="flex-1 py-3.5 font-mono text-xs font-bold tracking-[0.12em] border border-accent text-accent bg-transparent hover:bg-accent/10 transition-all cursor-crosshair"
                   >
                     ↩ RUN NEW SCAN
                   </button>
-                  <button className="flex-[2] py-3 font-mono text-[0.68rem] font-bold tracking-[0.15em] bg-accent text-bg-deep border-none hover:shadow-[0_0_30px_rgba(0,229,255,0.4)] transition-all cursor-crosshair">
+                  <button className="flex-[2] py-3.5 font-mono text-xs font-bold tracking-[0.12em] bg-accent text-bg-deep border-none hover:shadow-[0_0_30px_rgba(0,229,255,0.4)] transition-all cursor-crosshair">
                     VIEW FULL REPORT →
                   </button>
                 </div>
@@ -628,7 +604,7 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
 
           {/* Phase status list */}
           <div>
-            <div className="font-label text-[0.5rem] text-text-dim tracking-[0.15em] mb-3">
+            <div className="font-label text-[0.65rem] text-text-muted tracking-[0.15em] mb-3">
               OPERATION LOG
             </div>
             {SCAN_STAGES.map((stage, i) => {
@@ -646,26 +622,25 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
                     className="w-1.5 h-1.5 rounded-full shrink-0"
                     style={{
                       background: status === 'done' || status === 'active' ? stage.color : 'var(--color-border-subtle)',
-                      boxShadow: status === 'active' ? `0 0 8px ${stage.color}` : 'none',
-                      animation: status === 'active' ? 'dot-blink 1s infinite' : 'none',
+                      boxShadow: status === 'active' ? `0 0 6px ${stage.color}` : 'none',
                     }}
                   />
                   <span
-                    className="font-mono text-[0.55rem] tracking-[0.08em] font-bold flex-1"
+                    className="font-mono text-[0.68rem] tracking-[0.06em] font-bold flex-1"
                     style={{
                       color:
                         status === 'done'
-                          ? 'var(--color-text-dim)'
+                          ? 'var(--color-text-muted)'
                           : status === 'active'
                             ? stage.color
                             : 'var(--color-text-dim)',
-                      opacity: status === 'pending' ? 0.3 : 1,
+                      opacity: status === 'pending' ? 0.35 : 1,
                     }}
                   >
                     {stage.label}
                   </span>
                   <span
-                    className="font-mono text-[0.5rem] tracking-[0.1em]"
+                    className="font-mono text-[0.6rem] tracking-[0.1em]"
                     style={{
                       color:
                         status === 'done'
@@ -685,7 +660,7 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
           {/* Severity bars — visible from Attacking stage onward */}
           {(currentStageIdx >= 2 || showReport) && (
             <div>
-              <div className="font-label text-[0.5rem] text-text-dim tracking-[0.15em] mb-3">
+              <div className="font-label text-[0.65rem] text-text-muted tracking-[0.15em] mb-3">
                 FINDINGS SEVERITY
               </div>
               {SCAN_SEVERITY_DATA.map((item, i) => (
@@ -701,7 +676,7 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
 
           {/* System telemetry */}
           <div>
-            <div className="font-label text-[0.5rem] text-text-dim tracking-[0.15em] mb-3">
+            <div className="font-label text-[0.65rem] text-text-muted tracking-[0.15em] mb-3">
               SYSTEM TELEMETRY
             </div>
             {[
@@ -711,9 +686,9 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
               ['FINDINGS', currentStageIdx >= 3 ? '28 TOTAL' : currentStageIdx >= 2 ? 'ANALYZING...' : '—', currentStageIdx >= 3 ? '#FF3B3B' : 'var(--color-text-dim)'],
               ['REPORT', showReport ? 'READY' : 'PENDING', showReport ? 'var(--color-success)' : 'var(--color-text-dim)'],
             ].map(([key, val, color]) => (
-              <div key={key} className="flex justify-between py-1.5 border-b border-border-subtle/30">
-                <span className="font-label text-[0.5rem] text-text-dim tracking-[0.1em]">{key}</span>
-                <span className="font-mono text-[0.55rem] font-bold tracking-[0.08em]" style={{ color }}>{val}</span>
+              <div key={key} className="flex justify-between py-2 border-b border-border-subtle/30">
+                <span className="font-label text-[0.65rem] text-text-muted tracking-[0.08em]">{key}</span>
+                <span className="font-mono text-[0.68rem] font-bold tracking-[0.06em]" style={{ color }}>{val}</span>
               </div>
             ))}
           </div>
@@ -721,7 +696,7 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
           {/* Tool status — visible from Attacking stage */}
           {currentStageIdx >= 2 && (
             <div>
-              <div className="font-label text-[0.5rem] text-text-dim tracking-[0.15em] mb-3">
+              <div className="font-label text-[0.65rem] text-text-muted tracking-[0.15em] mb-3">
                 TOOLS DEPLOYED
               </div>
               {[
@@ -730,22 +705,21 @@ export default function ScanVisualizer({ targetUrl, onBack }: ScanVisualizerProp
                 ['nuclei', currentStageIdx >= 3, '#00E5FF'],
                 ['sqlmap', currentStageIdx >= 3, '#FF3B3B'],
               ].map(([tool, done, color]) => (
-                <div key={tool as string} className="flex items-center gap-2 py-1.5 border-b border-border-subtle/30">
+                <div key={tool as string} className="flex items-center gap-2.5 py-2 border-b border-border-subtle/30">
                   <div
-                    className="w-1.5 h-1.5 rounded-full"
+                    className="w-2 h-2 rounded-full"
                     style={{
                       background: done || currentStageIdx === 2 ? color as string : 'var(--color-border-subtle)',
-                      animation: currentStageIdx === 2 && !done ? 'dot-blink 1s infinite' : 'none',
                       boxShadow: done ? `0 0 6px ${color}` : 'none',
                     }}
                   />
                   <span
-                    className="font-mono text-[0.62rem] font-bold tracking-[0.05em]"
+                    className="font-mono text-[0.75rem] font-bold tracking-[0.04em]"
                     style={{ color: done || currentStageIdx === 2 ? (color as string) : 'var(--color-text-dim)' }}
                   >
                     {tool as string}
                   </span>
-                  <span className="ml-auto font-label text-[0.45rem]" style={{ color: done ? 'var(--color-success)' : 'var(--color-text-dim)' }}>
+                  <span className="ml-auto font-label text-[0.6rem]" style={{ color: done ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
                     {done ? 'COMPLETE' : currentStageIdx === 2 ? 'RUNNING' : 'QUEUED'}
                   </span>
                 </div>
