@@ -14,13 +14,7 @@ import json
 
 router = APIRouter()
 
-##################################
-# This is untested, and may break
-
-from fastapi import FastAPI
 from pydantic import BaseModel
-
-app = FastAPI()
 
 
 # -------- Payload Schema --------
@@ -32,7 +26,7 @@ class ScanWebhook(BaseModel):
 
 
 # -------- Webhook Endpoint --------
-@app.post("/webhook/scan")
+@router.post("/webhook/scan")
 async def receive_scan(data: ScanWebhook):
     print("Webhook received:")
     print(f"Tool: {data.tool}")
@@ -41,8 +35,6 @@ async def receive_scan(data: ScanWebhook):
     print(f"Status: {data.status}")
 
     return {"message": "Webhook received successfully"}
-
-#################################
 
 @router.post("/scan", response_model=ScanResponse)
 async def start_scan(request: ScanRequest):
