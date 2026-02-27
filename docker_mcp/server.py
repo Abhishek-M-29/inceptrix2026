@@ -63,6 +63,7 @@ from models import (  # noqa: E402
     NiktoInput,
     NmapInput,
     NucleiInput,
+    ShellInput,
     SqlmapInput,
     ToolMeta,
     ToolResponse,
@@ -84,11 +85,12 @@ import tools.nuclei as _nuclei
 import tools.httpx_tool as _httpx
 import tools.dalfox as _dalfox
 import tools.jwt_tool as _jwt
+import tools.shell as _shell
 
 _ALL_META = [
     _nmap.META, _nikto.META, _whatweb.META, _sqlmap.META,
     _wfuzz.META, _ffuf.META, _nuclei.META, _httpx.META,
-    _dalfox.META, _jwt.META,
+    _dalfox.META, _jwt.META, _shell.META,
 ]
 
 
@@ -439,6 +441,15 @@ async def api_jwt(body: JwtToolInput) -> ToolResponse:
     """Analyse or attack a JWT token with jwt_tool."""
     cmd = ["jwt_tool"] + body.mode.split() + [body.token]
     result = await asyncio.to_thread(run_tool, "jwt_tool", cmd, timeout=body.timeout)
+    return _to_response(result)
+
+
+@app.post("/tools/shell", response_model=ToolResponse, tags=["Tools"])
+async def api_shell(body: ShellInput) -> ToolResponse:
+    """Run an arbitrary bash command inside the Kali Linux container."""
+    result = await asyncio.to_thread(
+        run_tool, "shell", ["bash", "-c", body.command], timeout=body.timeout
+    )
     return _to_response(result)
 
 

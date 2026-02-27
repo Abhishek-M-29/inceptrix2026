@@ -116,6 +116,11 @@ class JwtToolInput(BaseModel):
     timeout: int = Field(60, ge=5, le=300)
 
 
+class ShellInput(BaseModel):
+    command: str = Field(..., description="Bash command to run inside the Kali container, e.g. 'whoami' or 'cat /etc/os-release'")
+    timeout: int = Field(60, ge=1, le=3600, description="Max seconds to wait")
+
+
 # ---------------------------------------------------------------------------
 # Health + metadata
 # ---------------------------------------------------------------------------

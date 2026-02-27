@@ -19,11 +19,14 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("inceptrix.mcp.tools.shell")
 
+TOOL_NAME = "shell"
+DEFAULT_TIMEOUT = 60
+
 META = {
-    "name": "shell",
+    "name": TOOL_NAME,
     "description": "Run arbitrary bash commands inside the Kali Linux container",
     "binary": "bash",
-    "default_timeout": 60,
+    "default_timeout": DEFAULT_TIMEOUT,
 }
 
 
