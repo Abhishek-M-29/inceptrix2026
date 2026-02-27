@@ -61,23 +61,12 @@ RUN go install github.com/hahwul/dalfox/v2@latest \
     && ln -sf "$(go env GOPATH)/bin/dalfox" /usr/local/bin/dalfox
 
 
-# ── 4. jwt_tool — install via pipx (isolated, no --break-system-packages) ────
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        pipx \
-    && rm -rf /var/lib/apt/lists/*
-
-# Configure pipx PATH so it shows up for root
-RUN python3 -m pipx ensurepath
-
-# Clone jwt_tool from official repo
-RUN git clone --depth 1 https://github.com/ticarpi/jwt_tool.git /opt/jwt_tool
-
-# Install into a pipx venv (no touching system site‑packages)
-RUN pipx install --include-deps --python $(which python3) \
-    --no-deps \
-    /opt/jwt_tool \
-    && ln -sf "$(pipx list --json | grep -o '/home/\w\+.local/bin/jwt_tool')" /usr/local/bin/jwt_tool
+# ── 4. jwt_tool — clone + install deps + create wrapper script ───────────────
+RUN git clone --depth 1 https://github.com/ticarpi/jwt_tool.git /opt/jwt_tool \
+    && pip3 install --break-system-packages -r /opt/jwt_tool/requirements.txt \
+    && printf '#!/bin/sh\nexec python3 /opt/jwt_tool/jwt_tool.py "$@"\n' \
+       > /usr/local/bin/jwt_tool \
+    && chmod +x /usr/local/bin/jwt_tool
 
 
 # ── 5. Python venv for MCP server (no impact on Kali’s Python) ───────────────
