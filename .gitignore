@@ -61,3 +61,4 @@ docker-compose.override.yml
 # Logs
 *.log
 celerybeat-schedule
+*/node_modules/

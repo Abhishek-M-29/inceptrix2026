@@ -1,15 +1,19 @@
 from fastapi import APIRouter, HTTPException, Query
-from app.schemas import ScanRequest, ScanResponse, StatusResponse, JobState, ReportResponse
+from app.schemas import ScanRequest, ScanResponse, StatusResponse, JobState, ReportResponse, FailureInfo
 from app.core.redis import redis_client
 from app.core.state_manager import (
     initialize_job,
     get_state,
     get_state_history,
+    get_failure_info,
 )
 from app.worker.tasks import run_scan_task
 import uuid
 import json
+import logging
 import httpx
+
+logger = logging.getLogger("redshell.api")
 
 
 
@@ -38,7 +42,7 @@ async def receive_scan(data: ScanWebhook):
     }
     redis_client.rpush(WEBHOOK_QUEUE_KEY, json.dumps(entry))
 
-    print(f"[webhook] queued → engagement_id={data.engagement_id} status={data.status}")
+    logger.info("[webhook] queued → engagement_id=%s status=%s", data.engagement_id, data.status)
     return {"engagement_id": data.engagement_id, "status": data.status}
 
 
@@ -78,8 +82,7 @@ async def start_scan(request: ScanRequest):
 
         return ScanResponse(engagement_id=engagement_id, status=state)
     except Exception as e:
-        # Log server-side for debugging and return a clear error detail
-        print(f"[SCAN_ERROR] Failed to start scan: {e}")
+        logger.error("Failed to start scan: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"scan_setup_error: {e}")
 
 
@@ -104,21 +107,30 @@ async def local_scan_proxy(request: ScanRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[LOCAL_SCAN_PROXY_ERROR] Failed to call local /scan: {e}")
+        logger.error("Failed to call local /scan: %s", e, exc_info=True)
         raise HTTPException(status_code=502, detail=f"proxy_error: {e}")
 
 @router.get("/status/{engagement_id}", response_model=StatusResponse)
 async def get_status(engagement_id: str, include_history: bool = Query(False)):
     state = get_state(engagement_id)
-    
+
     if state is None:
         raise HTTPException(status_code=404, detail="Engagement ID not found")
-    
+
     response = StatusResponse(engagement_id=engagement_id, status=state)
-    
+
     if include_history:
         response.history = get_state_history(engagement_id)
-        
+
+    # Attach structured failure metadata when the job has failed
+    if state == JobState.FAILED:
+        failure_data = get_failure_info(engagement_id)
+        if failure_data:
+            try:
+                response.error = FailureInfo(**failure_data)
+            except Exception:
+                logger.warning("[%s] Could not parse failure info", engagement_id)
+
     return response
 
 @router.get("/status/{engagement_id}/history")

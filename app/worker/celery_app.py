@@ -16,4 +16,7 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    # Safety-net timeouts (per-stage timeouts are enforced in tasks.py)
+    task_time_limit=300,          # hard kill after 5 min
+    task_soft_time_limit=270,     # SoftTimeLimitExceeded after 4.5 min
 )

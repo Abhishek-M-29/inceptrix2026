@@ -53,6 +53,14 @@ class StateHistoryEntry(BaseModel):
     timestamp: datetime
 
 
+class FailureInfo(BaseModel):
+    """Structured failure metadata stored when a job enters the Failed state."""
+    failed_stage: str
+    error: str
+    traceback: Optional[str] = None
+    failed_at: datetime
+
+
 class ScanRequest(BaseModel):
     target_url: HttpUrl
 
@@ -66,6 +74,7 @@ class StatusResponse(BaseModel):
     engagement_id: str
     status: JobState
     history: Optional[List[StateHistoryEntry]] = None
+    error: Optional[FailureInfo] = None
 
 
 class SandboxInfo(BaseModel):
