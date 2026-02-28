@@ -295,7 +295,12 @@ export default function ReportView({ report, engagementId, targetUrl, elapsed, o
     await new Promise(r => setTimeout(r, 150))
 
     try {
-      const html2pdf = (await import('html2pdf.js')).default
+      // html2pdf.js is CJS — handle both default and direct export
+      const mod = await import('html2pdf.js')
+      const html2pdf = (mod as unknown as { default?: unknown }).default ?? mod
+      if (typeof html2pdf !== 'function') {
+        throw new Error('html2pdf.js did not export a callable function')
+      }
       const element = reportRef.current
 
       const opt = {
@@ -307,16 +312,21 @@ export default function ReportView({ report, engagementId, targetUrl, elapsed, o
           useCORS: true,
           backgroundColor: '#020210',
           logging: false,
+          scrollY: 0,
+          windowHeight: element.scrollHeight,
         },
         jsPDF: {
-          unit: 'mm',
-          format: 'a4',
+          unit: 'mm' as const,
+          format: 'a4' as const,
           orientation: 'portrait' as const,
         },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] as string[] },
       }
 
-      await html2pdf().set(opt).from(element).save()
+      await (html2pdf as CallableFunction)()
+        .set(opt)
+        .from(element)
+        .save()
     } catch (err) {
       console.error('PDF generation failed:', err)
     } finally {
@@ -328,7 +338,7 @@ export default function ReportView({ report, engagementId, targetUrl, elapsed, o
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 min-h-0 overflow-y-auto">
       <style>{PDF_PRINT_STYLES}</style>
 
       <div ref={reportRef} className="report-pdf-target max-w-[900px] mx-auto p-6 md:p-10">

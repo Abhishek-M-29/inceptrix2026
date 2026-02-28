@@ -332,7 +332,7 @@ export default function ScanVisualizer({ targetUrl, engagementId, status, histor
 
       {/* REPORT VIEW (full-width when completed) */}
       {status && !isLoading && showReport && (
-        <div className="flex-1 min-h-0 overflow-hidden" style={{ animation: 'fade-slide-up 0.4s ease' }}>
+        <div className="flex-1 min-h-0 flex flex-col" style={{ animation: 'fade-slide-up 0.4s ease' }}>
           {report ? (
             <ReportView
               report={report}
