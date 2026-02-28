@@ -9,26 +9,39 @@ import ReportPreviewSection from './components/ReportPreviewSection'
 import StatusTimeline from './components/StatusTimeline'
 import FooterCTA from './components/FooterCTA'
 import ScanVisualizer from './components/ScanVisualizer'
+import { useScan } from './hooks/useScan'
 
 function App() {
-  const [scanUrl, setScanUrl] = useState<string | null>(null)
+  const [targetUrl, setTargetUrl] = useState<string | null>(null)
+  const scan = useScan()
 
-  const handleScan = (url: string) => {
-    setScanUrl(url)
+  const handleScan = async (url: string) => {
+    setTargetUrl(url)
+    await scan.startScan(url)
   }
 
   const handleBack = () => {
-    setScanUrl(null)
+    scan.reset()
+    setTargetUrl(null)
   }
 
-  // If scanning, show full-page visualizer
-  if (scanUrl) {
+  // If scanning (or scan just completed), show full-page visualizer
+  if (targetUrl && (scan.engagementId || scan.isLoading)) {
     return (
       <>
         <div className="hex-grid-bg" />
         <div className="noise-overlay" />
         <div className="scanline-overlay" />
-        <ScanVisualizer targetUrl={scanUrl} onBack={handleBack} />
+        <ScanVisualizer
+          targetUrl={targetUrl}
+          engagementId={scan.engagementId}
+          status={scan.status}
+          history={scan.history}
+          report={scan.report}
+          error={scan.error}
+          isLoading={scan.isLoading}
+          onBack={handleBack}
+        />
       </>
     )
   }
@@ -43,7 +56,7 @@ function App() {
       {/* Page content */}
       <main className="relative z-10">
         <HeroSection />
-        <ScanInputPanel onScan={handleScan} />
+        <ScanInputPanel onScan={handleScan} isLoading={scan.isLoading} />
         <ThreatLandscapeSection />
         <PipelineSection />
         <ArsenalSection />

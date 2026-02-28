@@ -86,13 +86,13 @@ export default function ReportPreviewSection() {
         {/* Section header */}
         <div className="text-center mb-16">
           <div className="font-label text-[0.6rem] text-accent uppercase tracking-[0.3em] mb-3">
-            [ INTELLIGENCE OUTPUT ]
+            [ REPORT FORMAT ]
           </div>
           <h2 className="font-display text-[3rem] sm:text-[4rem] text-text-primary leading-none m-0">
-            SEE WHAT WE FIND
+            SAMPLE OUTPUT
           </h2>
           <p className="font-mono text-[0.8rem] text-text-muted mt-3 max-w-[520px] mx-auto">
-            A real finding. Real evidence. Real remediation. Every vulnerability is documented and actionable.
+            Every vulnerability is documented with evidence, impact assessment, and actionable remediation steps.
           </p>
         </div>
 

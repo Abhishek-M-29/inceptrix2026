@@ -4,9 +4,10 @@ import { MOCK_TERMINAL_LINES } from '../data/mockData'
 
 interface ScanInputPanelProps {
   onScan?: (url: string) => void
+  isLoading?: boolean
 }
 
-export default function ScanInputPanel({ onScan }: ScanInputPanelProps) {
+export default function ScanInputPanel({ onScan, isLoading }: ScanInputPanelProps) {
   const { ref, isInView } = useInView({ threshold: 0.2 })
   const [url, setUrl] = useState('')
   const [validationStep, setValidationStep] = useState(0)
@@ -61,7 +62,7 @@ export default function ScanInputPanel({ onScan }: ScanInputPanelProps) {
   }
 
   const handleScan = () => {
-    if (url.includes('github.com/') && onScan) {
+    if (url.includes('github.com/') && onScan && !isLoading) {
       onScan(url)
     }
   }
@@ -107,7 +108,7 @@ export default function ScanInputPanel({ onScan }: ScanInputPanelProps) {
                 style={{ animation: 'none' }}
                 onClick={handleScan}
               >
-                ▶ RUN REDSHELL
+                {isLoading ? '⏳ STARTING...' : '▶ RUN REDSHELL'}
               </button>
             </div>
 

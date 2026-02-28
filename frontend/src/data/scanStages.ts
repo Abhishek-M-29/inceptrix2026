@@ -1,5 +1,7 @@
 /* ─── Scan Stage Definitions ─── */
-/* Maps to real backend states. Each stage has terminal-style logs that animate. */
+/* Visual config for each backend JobState. Colors, labels, glows, and fallback logs. */
+
+import type { JobState } from '../api/types'
 
 export interface ScanStage {
   id: string
@@ -191,3 +193,15 @@ export const SCAN_SEVERITY_DATA = [
 ]
 
 export const STAGE_DURATIONS = [8000, 3000, 14000, 5000, 5000, 3000]
+
+/** Maps backend JobState → index into SCAN_STAGES array */
+export const JOB_STATE_TO_STAGE_INDEX: Record<JobState, number> = {
+  Queued: 0,            // maps to "Provisioning" stage visually
+  Provisioning: 0,
+  Provisioned: 1,
+  Attacking: 2,
+  Normalizing: 3,
+  Generating_Report: 4,
+  Completed: 5,
+  Failed: -1,           // special: handled separately in UI
+}
