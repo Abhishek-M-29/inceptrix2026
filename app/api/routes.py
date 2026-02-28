@@ -9,6 +9,7 @@ from app.core.state_manager import (
 from app.worker.tasks import run_scan_task
 import uuid
 import json
+import httpx
 
 
 
@@ -80,6 +81,31 @@ async def start_scan(request: ScanRequest):
         # Log server-side for debugging and return a clear error detail
         print(f"[SCAN_ERROR] Failed to start scan: {e}")
         raise HTTPException(status_code=500, detail=f"scan_setup_error: {e}")
+
+
+@router.post("/local/scan-proxy", response_model=ScanResponse)
+async def local_scan_proxy(request: ScanRequest):
+    """Proxy endpoint that calls POST http://localhost:8000/scan.
+
+    Useful when another component only talks to this FastAPI app,
+    but you want to delegate the scan to a local service on port 8000.
+    """
+    try:
+        async with httpx.AsyncClient(base_url="http://127.0.0.1:8000") as client:
+            resp = await client.post("/scan", json=request.dict())
+
+        if resp.status_code >= 400:
+            raise HTTPException(
+                status_code=resp.status_code,
+                detail=f"downstream_scan_error: {resp.text}",
+            )
+
+        return resp.json()
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[LOCAL_SCAN_PROXY_ERROR] Failed to call local /scan: {e}")
+        raise HTTPException(status_code=502, detail=f"proxy_error: {e}")
 
 @router.get("/status/{engagement_id}", response_model=StatusResponse)
 async def get_status(engagement_id: str, include_history: bool = Query(False)):
