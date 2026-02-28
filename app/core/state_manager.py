@@ -145,7 +145,7 @@ def force_fail(engagement_id: str, error_message: str) -> JobState:
 
 def initialize_job(engagement_id: str) -> JobState:
     """
-    Initialize a new job with Queued state.
+    Initialize a new job with Provisioning state.
     
     This is a convenience method for creating new jobs.
     
@@ -153,9 +153,9 @@ def initialize_job(engagement_id: str) -> JobState:
         engagement_id: The job identifier
         
     Returns:
-        JobState.QUEUED
+        JobState.PROVISIONING
     """
-    return transition_state(engagement_id, JobState.QUEUED, validate=True)
+    return transition_state(engagement_id, JobState.PROVISIONING, validate=True)
 
 
 def is_terminal_state(state: Optional[JobState]) -> bool:

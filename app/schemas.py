@@ -1,7 +1,7 @@
 from pydantic import BaseModel, HttpUrl
 from uuid import UUID
 from enum import Enum
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -9,10 +9,9 @@ class JobState(str, Enum):
     """
     Job lifecycle states following strict state machine transitions.
     
-    Flow: Queued → Provisioning → Provisioned → Attacking → Normalizing → Generating_Report → Completed
+    Flow: Provisioning → Provisioned → Attacking → Normalizing → Generating_Report → Completed
     Any state can transition to Failed.
     """
-    QUEUED = "Queued"
     PROVISIONING = "Provisioning"
     PROVISIONED = "Provisioned"
     ATTACKING = "Attacking"
@@ -24,8 +23,7 @@ class JobState(str, Enum):
 
 # Valid state transitions - each state maps to its allowed next states
 VALID_TRANSITIONS: dict[Optional[JobState], set[JobState]] = {
-    None: {JobState.QUEUED},  # Initial state (no previous state)
-    JobState.QUEUED: {JobState.PROVISIONING, JobState.FAILED},
+    None: {JobState.PROVISIONING},  # Initial state (no previous state)
     JobState.PROVISIONING: {JobState.PROVISIONED, JobState.FAILED},
     JobState.PROVISIONED: {JobState.ATTACKING, JobState.FAILED},
     JobState.ATTACKING: {JobState.NORMALIZING, JobState.FAILED},
@@ -68,3 +66,35 @@ class StatusResponse(BaseModel):
     engagement_id: str
     status: JobState
     history: Optional[List[StateHistoryEntry]] = None
+
+
+class SandboxInfo(BaseModel):
+    sandbox_id: str
+    sandbox_url: str
+    github_url: str
+
+
+class ScanSummary(BaseModel):
+    open_ports: List[int]
+    services_detected: List[str]
+    total_findings: int
+
+
+class ReportMetadata(BaseModel):
+    generated_at: datetime
+    agent: str
+    total_steps: int
+    total_actions: int
+    elapsed_seconds: float
+
+
+class ReportResponse(BaseModel):
+    """Response schema for GET /report/{engagement_id}."""
+    job_id: str
+    status: str
+    target: str
+    sandbox: SandboxInfo
+    scan_summary: ScanSummary
+    findings: List[Dict[str, Any]]
+    metadata: ReportMetadata
+    logs: List[str]

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from app.schemas import ScanRequest, ScanResponse, StatusResponse, JobState
+from app.schemas import ScanRequest, ScanResponse, StatusResponse, JobState, ReportResponse
 from app.core.redis import redis_client
 from app.core.state_manager import (
     initialize_job,
@@ -23,9 +23,7 @@ PAGE_SIZE = 20
 
 # -------- Payload Schema --------
 class ScanWebhook(BaseModel):
-    tool: str
-    target: str
-    command_used: str
+    engagement_id: str
     status: str
 
 
@@ -33,16 +31,14 @@ class ScanWebhook(BaseModel):
 @router.post("/webhook/scan")
 async def receive_scan(data: ScanWebhook):
     entry = {
-        "tool": data.tool,
-        "target": data.target,
-        "command_used": data.command_used,
+        "engagement_id": data.engagement_id,
         "status": data.status,
         "received_at": datetime.now(timezone.utc).isoformat(),
     }
     redis_client.rpush(WEBHOOK_QUEUE_KEY, json.dumps(entry))
 
-    print(f"[webhook] queued → tool={data.tool} target={data.target} status={data.status}")
-    return {"message": "Webhook received successfully", "queue_length": redis_client.llen(WEBHOOK_QUEUE_KEY)}
+    print(f"[webhook] queued → engagement_id={data.engagement_id} status={data.status}")
+    return {"engagement_id": data.engagement_id, "status": data.status}
 
 
 # -------- Queue Read Endpoint --------
@@ -65,15 +61,25 @@ async def get_queue(page: int = Query(1, ge=1), page_size: int = Query(PAGE_SIZE
 
 @router.post("/scan", response_model=ScanResponse)
 async def start_scan(request: ScanRequest):
-    engagement_id = str(uuid.uuid4())
-    
-    # Initialize job with Queued state (using state manager)
-    state = initialize_job(engagement_id)
-    
-    # Trigger Celery task
-    run_scan_task.delay(engagement_id, str(request.target_url))
-    
-    return ScanResponse(engagement_id=engagement_id, status=state)
+    """Start a new scan job and enqueue it for processing.
+
+    Wrapped in a try/except so that any setup errors are surfaced
+    to the client instead of a generic 500.
+    """
+    try:
+        engagement_id = str(uuid.uuid4())
+
+        # Initialize job with Provisioning state (using state manager)
+        state = initialize_job(engagement_id)
+
+        # Trigger Celery task
+        run_scan_task.delay(engagement_id, str(request.target_url))
+
+        return ScanResponse(engagement_id=engagement_id, status=state)
+    except Exception as e:
+        # Log server-side for debugging and return a clear error detail
+        print(f"[SCAN_ERROR] Failed to start scan: {e}")
+        raise HTTPException(status_code=500, detail=f"scan_setup_error: {e}")
 
 @router.get("/status/{engagement_id}", response_model=StatusResponse)
 async def get_status(engagement_id: str, include_history: bool = Query(False)):
@@ -103,7 +109,7 @@ async def get_status_history(engagement_id: str):
         "history": [{"state": h.state.value, "timestamp": h.timestamp.isoformat()} for h in history]
     }
 
-@router.get("/report/{engagement_id}")
+@router.get("/report/{engagement_id}", response_model=ReportResponse)
 async def get_report(engagement_id: str):
     state = get_state(engagement_id)
     

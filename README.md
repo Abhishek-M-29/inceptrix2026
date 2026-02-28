@@ -34,14 +34,13 @@ Automated security scanning platform with strict state machine lifecycle managem
 Jobs follow a strict state transition lifecycle:
 
 ```
-Queued → Provisioning → Provisioned → Attacking → Normalizing → Generating_Report → Completed
-   ↓           ↓              ↓           ↓            ↓                ↓
-   └───────────┴──────────────┴───────────┴────────────┴────────────────┴────────→ Failed
+Provisioning → Provisioned → Attacking → Normalizing → Generating_Report → Completed
+  ↓              ↓           ↓            ↓                ↓
+  └──────────────┴───────────┴────────────┴────────────────┴────────→ Failed
 ```
 
 | State | Description |
 |-------|-------------|
-| `Queued` | Job created, waiting for worker pickup |
 | `Provisioning` | Starting target container, creating network |
 | `Provisioned` | Container ready, endpoint reachable |
 | `Attacking` | Executing scan tools (nmap, nuclei, etc.) |
@@ -62,7 +61,7 @@ Start a new scan job.
 
 **Response:**
 ```json
-{ "engagement_id": "uuid", "status": "Queued" }
+{ "engagement_id": "uuid", "status": "Provisioning" }
 ```
 
 ### `GET /status/{engagement_id}`
@@ -76,7 +75,6 @@ Get current job status.
   "engagement_id": "uuid",
   "status": "Completed",
   "history": [
-    { "state": "Queued", "timestamp": "2026-02-27T16:49:08Z" },
     { "state": "Provisioning", "timestamp": "2026-02-27T16:49:08Z" },
     ...
   ]
