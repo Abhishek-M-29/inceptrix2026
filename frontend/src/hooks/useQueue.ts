@@ -1,7 +1,7 @@
 /* ─── useQueue Hook ─── */
 /* Polls the webhook event queue for live tool execution logs */
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { getQueue } from '../api/client'
 import type { QueueItem } from '../api/types'
 
