@@ -72,7 +72,7 @@ TOOL_TIMEOUT_MAP = {
     "build_sandbox": 600, "list_sandboxes": 30, "teardown_sandbox": 120,
 }
 
-MCP_URL = os.getenv("MCP_URL", "http://192.168.247.108:8090/")
+MCP_URL = os.getenv("MCP_URL", "http://127.0.0.1:8090/")
 KB_PATH = Path(".").resolve() / "knowledge_base.json"
 REPORT_PATH = Path(".").resolve() / "redshell_report.json"
 
